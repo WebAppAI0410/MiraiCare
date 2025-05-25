@@ -99,6 +99,7 @@ export const Colors = {
   background: '#F5F5F5',    // オフホワイト（目に優しい）
   surface: '#FFFFFF',       // 純白
   border: '#E0E0E0',        // ライトグレー
+  disabled: '#BDBDBD',      // 無効状態のグレー
   success: '#4CAF50',
   warning: '#FF9800',
   warningLight: '#FFF3E0',  // 薄いオレンジ（警告背景）
@@ -171,6 +172,34 @@ export type AuthState =
   | 'guest'
   | 'authenticated'
   | 'loading';
+
+// 認証方法の型定義
+export type AuthMethod = 'email' | 'magiclink' | 'otp';
+
+// 認証関連の型
+export interface AuthUser {
+  id: string;
+  email?: string;
+  phone?: string;
+  fullName?: string;
+  avatarUrl?: string;
+  authMethod?: AuthMethod;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Magic Link認証用の設定
+export interface MagicLinkConfig {
+  url: string;
+  handleCodeInApp: boolean;
+}
+
+// OTP認証用の設定
+export interface OTPConfig {
+  phoneNumber: string;
+  verificationId?: string;
+  resendToken?: string;
+}
 
 // ゲストモード制限
 export interface GuestLimitations {
