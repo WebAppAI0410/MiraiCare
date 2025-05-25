@@ -1,0 +1,153 @@
+name: Project Health Check
+
+on:
+  schedule:
+    # 毎日午前9時（JST）に実行
+    - cron: '0 0 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Check for security vulnerabilities
+        id: security-check
+        run: |
+          npm audit --audit-level=moderate 2>&1 | tee security-output.txt || echo "Security issues found"
+          echo "security_issues=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Check for outdated dependencies
+        id: outdated-check
+        run: |
+          npm outdated 2>&1 | tee outdated-output.txt || echo "Outdated packages found"
+          echo "outdated_packages=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Check bundle size
+        id: bundle-check
+        run: |
+          npm ci || npm install
+          npx expo export --platform web 2>&1 | tee bundle-output.txt || echo "Bundle check failed"
+          echo "bundle_failed=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Check for TODO/FIXME comments
+        id: todo-check
+        run: |
+          find src -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) -exec grep -Hn "TODO\|FIXME\|HACK\|XXX" {} \; > todo-output.txt || echo "No TODOs found"
+          echo "todo_count=$(wc -l < todo-output.txt)" >> $GITHUB_OUTPUT
+
+      - name: Create health report issue
+        if: steps.security-check.outputs.security_issues != '0' || steps.outdated-check.outputs.outdated_packages != '0' || steps.todo-check.outputs.todo_count > '10'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let securityIssues = '';
+            let outdatedPackages = '';
+            let todoComments = '';
+            
+            try {
+              securityIssues = fs.readFileSync('security-output.txt', 'utf8');
+            } catch (e) {}
+            
+            try {
+              outdatedPackages = fs.readFileSync('outdated-output.txt', 'utf8');
+            } catch (e) {}
+            
+            try {
+              todoComments = fs.readFileSync('todo-output.txt', 'utf8');
+            } catch (e) {}
+
+            const todoCount = todoComments.split('\n').filter(line => line.trim()).length;
+            
+            // Determine priority based on issues
+            let claudeModel = '[haiku]';
+            let priority = 'low';
+            
+            if (securityIssues.includes('high') || securityIssues.includes('critical')) {
+              claudeModel = '[opus]';
+              priority = 'high';
+            } else if (securityIssues.includes('moderate') || todoCount > 20) {
+              claudeModel = '[sonnet]';
+              priority = 'medium';
+            }
+
+            const issueBody = `@claude ${claudeModel}
+
+            ## 🏥 プロジェクト健全性レポート
+
+            定期健全性チェックで問題が検出されました。
+
+            ### 📊 概要
+            - 優先度: **${priority}**
+            - セキュリティ問題: ${securityIssues.includes('vulnerabilities') ? '検出' : 'なし'}
+            - 古いパッケージ: ${outdatedPackages.includes('Package') ? '検出' : 'なし'}
+            - TODO/FIXME: ${todoCount}個
+
+            ${securityIssues ? `### 🔒 セキュリティ問題
+            \`\`\`
+            ${securityIssues.slice(0, 1500)}
+            \`\`\`
+            ` : ''}
+
+            ${outdatedPackages ? `### 📦 古いパッケージ
+            \`\`\`
+            ${outdatedPackages.slice(0, 1500)}
+            \`\`\`
+            ` : ''}
+
+            ${todoCount > 10 ? `### 📝 TODO/FIXME コメント (${todoCount}個)
+            \`\`\`
+            ${todoComments.slice(0, 1500)}
+            \`\`\`
+            ` : ''}
+
+            ### ✅ 推奨アクション
+            - [ ] セキュリティ脆弱性を修正
+            - [ ] 重要なパッケージを更新
+            - [ ] TODO/FIXMEコメントを整理
+            - [ ] 不要なコードを削除
+            - [ ] ドキュメントを更新
+
+            ### 🔖 制約
+            - 破壊的変更を避ける
+            - テストカバレッジを維持
+            - パフォーマンスを向上させる
+            - セキュリティベストプラクティスに従う
+            `;
+
+            // Check for existing health check issues
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'health-check'
+            });
+
+            if (existingIssues.data.length === 0) {
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[health] プロジェクト健全性レポート - ${new Date().toISOString().split('T')[0]}`,
+                body: issueBody,
+                labels: ['health-check', 'maintenance', priority]
+              });
+
+              console.log(`Created health check issue #${issue.data.number}`);
+            } 

@@ -1,0 +1,124 @@
+name: Auto Issue Management
+
+on:
+  pull_request:
+    types: [closed]
+  push:
+    branches: [main]
+  schedule:
+    # 毎時実行してIssueの状態をチェック
+    - cron: '0 * * * *'
+
+jobs:
+  manage-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Check if errors are resolved
+        id: error-check
+        run: |
+          npm ci || npm install || echo "Install failed"
+          
+          # Run checks
+          npm run lint > /dev/null 2>&1 && echo "lint_passed=true" >> $GITHUB_OUTPUT || echo "lint_passed=false" >> $GITHUB_OUTPUT
+          npm test > /dev/null 2>&1 && echo "test_passed=true" >> $GITHUB_OUTPUT || echo "test_passed=false" >> $GITHUB_OUTPUT
+          npx tsc --noEmit > /dev/null 2>&1 && echo "tsc_passed=true" >> $GITHUB_OUTPUT || echo "tsc_passed=false" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Auto-close resolved issues
+        if: steps.error-check.outputs.lint_passed == 'true' && steps.error-check.outputs.test_passed == 'true' && steps.error-check.outputs.tsc_passed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get all open auto-detected issues
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'auto-detected'
+            });
+
+            for (const issue of issues.data) {
+              // Close the issue with a comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `🎉 **自動解決確認**
+
+                このIssueで報告されていた問題が解決されたことを確認しました：
+                - ✅ Lint: 合格
+                - ✅ Tests: 合格  
+                - ✅ TypeScript: 合格
+
+                自動的にクローズします。
+
+                ---
+                *このコメントは自動Issue管理システムによって生成されました。*`
+              });
+
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                labels: [...issue.labels.map(l => l.name), 'auto-resolved']
+              });
+
+              console.log(`Auto-closed issue #${issue.number}`);
+            }
+
+      - name: Create progress report for open issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const openIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'auto-detected'
+            });
+
+            if (openIssues.data.length > 0) {
+              console.log(`Found ${openIssues.data.length} open auto-detected issues`);
+              
+              for (const issue of openIssues.data) {
+                // Check if issue is older than 24 hours
+                const issueAge = Date.now() - new Date(issue.created_at).getTime();
+                const hoursOld = issueAge / (1000 * 60 * 60);
+                
+                if (hoursOld > 24) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `⏰ **進捗確認**
+
+                    このIssueは${Math.floor(hoursOld)}時間前に作成されましたが、まだ解決されていません。
+
+                    現在の状況：
+                    - Lint: ${process.env.lint_passed === 'true' ? '✅ 合格' : '❌ 失敗'}
+                    - Tests: ${process.env.test_passed === 'true' ? '✅ 合格' : '❌ 失敗'}
+                    - TypeScript: ${process.env.tsc_passed === 'true' ? '✅ 合格' : '❌ 失敗'}
+
+                    @claude より詳細な分析と修正案を提供してください。`
+                  });
+                }
+              }
+            }
+        env:
+          lint_passed: ${{ steps.error-check.outputs.lint_passed }}
+          test_passed: ${{ steps.error-check.outputs.test_passed }}
+          tsc_passed: ${{ steps.error-check.outputs.tsc_passed }} 
