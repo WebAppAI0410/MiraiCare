@@ -1,16 +1,23 @@
-name: Workflow Monitor & Self-Healing
+name: Workflow Monitor
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # 30分ごとに実行
-  workflow_dispatch: {}
-  workflow_run:
-    workflows: ["Auto Error Detection & Issue Creation", "Claude Code Actions", "Auto Issue Management"]
-    types: [completed]
+    - cron: '0 6,18 * * *'  # 毎日6時・18時（JST 15時・3時）
+  workflow_dispatch:
+    inputs:
+      force_full_check:
+        description: '完全診断を強制実行'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
-  monitor-workflows:
+  unified-monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: workflow-monitor
+      cancel-in-progress: true
     permissions:
       contents: read
       issues: write
@@ -20,276 +27,171 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Monitor workflow health
+      - name: Comprehensive workflow analysis
+        id: analysis
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            
-            // 過去24時間のワークフロー実行を取得
             const workflows = [
-              'auto-error-detection.yml',
-              'claude.yml', 
-              'auto-issue-management.yml',
-              'health-check.yml'
+              { name: 'claude-unified-fix.yml', displayName: 'Claude Unified Fix', critical: true },
+              { name: 'auto-error-detection.yml', displayName: 'Auto Error Detection', critical: true },
+              { name: 'test.yml', displayName: 'RN Unit CI', critical: true },
+              { name: 'claude.yml', displayName: 'Claude Code Actions', critical: false },
+              { name: 'health-check.yml', displayName: 'Project Health Check', critical: false }
             ];
             
-            let healthReport = {
-              issues: [],
+            let report = {
+              summary: { total: 0, working: 0, issues: 0, warnings: 0 },
+              critical_issues: [],
               warnings: [],
-              costs: { total_runs: 0, failed_runs: 0, avg_duration: 0 }
+              cost_analysis: { total_runs: 0, failed_runs: 0, total_minutes: 0 }
             };
             
+            const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            
             for (const workflow of workflows) {
+              report.summary.total++;
+              
               try {
                 const runs = await github.rest.actions.listWorkflowRuns({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  workflow_id: workflow,
-                  per_page: 50,
-                  created: `>${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()}`
+                  workflow_id: workflow.name,
+                  per_page: 20,
+                  created: `>${yesterday.toISOString()}`
                 });
                 
                 const totalRuns = runs.data.workflow_runs.length;
                 const failedRuns = runs.data.workflow_runs.filter(run => run.conclusion === 'failure').length;
-                const cancelledRuns = runs.data.workflow_runs.filter(run => run.conclusion === 'cancelled').length;
-                const avgDuration = runs.data.workflow_runs.reduce((sum, run) => {
+                const successRuns = runs.data.workflow_runs.filter(run => run.conclusion === 'success').length;
+                
+                // 実行時間計算
+                const totalMinutes = runs.data.workflow_runs.reduce((sum, run) => {
                   if (run.updated_at && run.created_at) {
-                    return sum + (new Date(run.updated_at) - new Date(run.created_at));
+                    return sum + (new Date(run.updated_at) - new Date(run.created_at)) / (1000 * 60);
                   }
                   return sum;
-                }, 0) / totalRuns || 0;
+                }, 0);
                 
-                healthReport.costs.total_runs += totalRuns;
-                healthReport.costs.failed_runs += failedRuns;
-                healthReport.costs.avg_duration += avgDuration;
+                report.cost_analysis.total_runs += totalRuns;
+                report.cost_analysis.failed_runs += failedRuns;
+                report.cost_analysis.total_minutes += totalMinutes;
                 
-                // 異常検知
-                if (failedRuns / totalRuns > 0.3 && totalRuns > 5) {
-                  healthReport.issues.push(`${workflow}: 失敗率が高すぎます (${Math.round(failedRuns/totalRuns*100)}%)`);
+                // 問題検知
+                const failureRate = totalRuns > 0 ? failedRuns / totalRuns : 0;
+                
+                if (workflow.critical && failureRate > 0.5 && totalRuns > 2) {
+                  report.critical_issues.push(`🔴 ${workflow.displayName}: 重要ワークフローの失敗率が高い (${Math.round(failureRate*100)}%)`);
+                  report.summary.issues++;
+                } else if (failureRate > 0.3 && totalRuns > 3) {
+                  report.warnings.push(`🟡 ${workflow.displayName}: 失敗率が高い (${Math.round(failureRate*100)}%)`);
+                  report.summary.warnings++;
+                } else if (totalRuns > 0) {
+                  report.summary.working++;
                 }
                 
-                if (totalRuns > 20) {
-                  healthReport.warnings.push(`${workflow}: 実行回数が多すぎます (${totalRuns}回/24h) - APIコスト増加の可能性`);
-                }
-                
-                if (avgDuration > 10 * 60 * 1000) { // 10分以上
-                  healthReport.warnings.push(`${workflow}: 実行時間が長すぎます (平均${Math.round(avgDuration/60000)}分)`);
-                }
-                
-                // 暴走検知（同じワークフローが短時間で大量実行）
+                // 暴走検知（1時間で10回以上）
                 const recentRuns = runs.data.workflow_runs.filter(run => 
-                  new Date(run.created_at) > new Date(Date.now() - 60 * 60 * 1000) // 過去1時間
+                  new Date(run.created_at) > new Date(Date.now() - 60 * 60 * 1000)
                 );
                 
                 if (recentRuns.length > 10) {
-                  healthReport.issues.push(`${workflow}: ワークフロー暴走の可能性 (1時間で${recentRuns.length}回実行)`);
+                  report.critical_issues.push(`🚨 ${workflow.displayName}: ワークフロー暴走 (1時間で${recentRuns.length}回実行)`);
                 }
                 
-                console.log(`${workflow}: ${totalRuns}回実行, ${failedRuns}回失敗, 平均${Math.round(avgDuration/60000)}分`);
+                // 長時間実行警告
+                if (totalMinutes > 60 && totalRuns > 0) {
+                  report.warnings.push(`⏱️ ${workflow.displayName}: 実行時間が長い (平均${Math.round(totalMinutes/totalRuns)}分)`);
+                }
+                
+                console.log(`${workflow.displayName}: ${totalRuns}回実行, ${failedRuns}回失敗, ${Math.round(totalMinutes)}分`);
                 
               } catch (error) {
-                healthReport.issues.push(`${workflow}: 監視エラー - ${error.message}`);
-              }
-            }
-            
-            // Issue作成が機能しているかチェック
-            const errorDetectionRuns = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'auto-error-detection.yml',
-              per_page: 10
-            });
-            
-            const recentSuccessfulRuns = errorDetectionRuns.data.workflow_runs.filter(run => 
-              run.conclusion === 'success' && 
-              new Date(run.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
-            );
-            
-            if (recentSuccessfulRuns.length > 0) {
-              // 最近のIssue作成をチェック
-              const issues = await github.rest.issues.listForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                labels: 'auto-detected',
-                state: 'all',
-                since: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-              });
-              
-              if (issues.data.length === 0 && recentSuccessfulRuns.length > 3) {
-                healthReport.issues.push('エラー検知ワークフローは成功しているが、Issueが作成されていない');
-              }
-            }
-            
-            // Claude Code Actionsの応答チェック
-            const claudeIssues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: 'auto-detected',
-              state: 'open'
-            });
-            
-            for (const issue of claudeIssues.data) {
-              const comments = await github.rest.issues.listComments({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number
-              });
-              
-              const claudeComments = comments.data.filter(comment => 
-                comment.user.login.includes('claude') || 
-                comment.body.includes('Claude Code') ||
-                comment.user.type === 'Bot'
-              );
-              
-              const issueAge = (Date.now() - new Date(issue.created_at)) / (1000 * 60 * 60); // 時間
-              
-              if (claudeComments.length === 0 && issueAge > 1) {
-                healthReport.warnings.push(`Issue #${issue.number}: Claude Codeが1時間以上応答していない`);
-              }
-            }
-            
-            // レポート作成
-            if (healthReport.issues.length > 0 || healthReport.warnings.length > 0) {
-              const reportBody = `@claude [sonnet]
-
-              ## 🚨 ワークフロー監視レポート
-
-              このレポートは自動ワークフロー監視システムによって生成されました。
-
-              ### 📊 概要
-              - 総実行回数（24h）: ${healthReport.costs.total_runs}
-              - 失敗回数: ${healthReport.costs.failed_runs}
-              - 平均実行時間: ${Math.round(healthReport.costs.avg_duration/60000)}分
-
-              ${healthReport.issues.length > 0 ? `### 🔴 重大な問題
-              ${healthReport.issues.map(issue => `- ${issue}`).join('\n')}
-              ` : ''}
-
-              ${healthReport.warnings.length > 0 ? `### 🟡 警告
-              ${healthReport.warnings.map(warning => `- ${warning}`).join('\n')}
-              ` : ''}
-
-              ### 🔧 推奨アクション
-              - [ ] ワークフロー設定の見直し
-              - [ ] APIコスト最適化
-              - [ ] エラー原因の調査
-              - [ ] 実行頻度の調整
-              - [ ] タイムアウト設定の見直し
-
-              ### 📝 自動修復の提案
-              以下の問題について自動修復を実行してください：
-              1. ワークフロー設定の最適化
-              2. 不要な実行の防止
-              3. エラーハンドリングの改善
-              4. コスト効率の向上
-
-              ---
-              *このレポートは自動ワークフロー監視システムによって生成されました。*
-              `;
-
-              // 既存の監視レポートIssueをチェック
-              const existingReports = await github.rest.issues.listForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                labels: 'workflow-monitor',
-                state: 'open'
-              });
-
-              const today = new Date().toISOString().split('T')[0];
-              const existingToday = existingReports.data.find(issue => 
-                issue.title.includes('ワークフロー監視レポート') && 
-                issue.title.includes(today)
-              );
-
-              if (!existingToday) {
-                await github.rest.issues.create({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  title: `[monitor] ワークフロー監視レポート - ${today}`,
-                  body: reportBody,
-                  labels: ['workflow-monitor', 'auto-detected', 'needs-fix']
-                });
-                
-                console.log('ワークフロー監視レポートを作成しました');
-              } else {
-                console.log('今日の監視レポートは既に存在します');
-              }
-            } else {
-              console.log('ワークフローは正常に動作しています');
-            }
-
-      - name: Auto-fix common workflow issues
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // 自動修復ロジック
-            const commonFixes = [];
-            
-            // 1. 過度な実行を防ぐためのconcurrency設定チェック
-            const workflowFiles = [
-              '.github/workflows/auto-error-detection.yml',
-              '.github/workflows/claude.yml',
-              '.github/workflows/auto-issue-management.yml'
-            ];
-            
-            for (const file of workflowFiles) {
-              try {
-                const content = require('fs').readFileSync(file, 'utf8');
-                
-                // concurrency設定がない場合は追加を提案
-                if (!content.includes('concurrency:')) {
-                  commonFixes.push(`${file}にconcurrency設定を追加してワークフロー暴走を防ぐ`);
+                if (workflow.critical) {
+                  report.critical_issues.push(`❌ ${workflow.displayName}: 監視エラー - ${error.message}`);
+                  report.summary.issues++;
+                } else {
+                  report.warnings.push(`⚠️ ${workflow.displayName}: 監視エラー - ${error.message}`);
+                  report.summary.warnings++;
                 }
-                
-                // timeout設定が長すぎる場合は調整を提案
-                if (content.includes('timeout-minutes') && content.match(/timeout-minutes:\s*[6-9]\d+/)) {
-                  commonFixes.push(`${file}のtimeout設定を短縮してコストを削減`);
-                }
-                
-              } catch (error) {
-                console.log(`${file}の確認をスキップ: ${error.message}`);
               }
             }
             
-            if (commonFixes.length > 0) {
-              console.log('自動修復の提案:');
-              commonFixes.forEach(fix => console.log(`- ${fix}`));
-            }
-
-      - name: Cost optimization check
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // APIコスト最適化チェック
-            const now = new Date();
-            const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            // コスト分析
+            const estimatedCost = report.cost_analysis.total_minutes * 0.008;
+            const healthScore = Math.round((report.summary.working / report.summary.total) * 100);
             
-            // 全ワークフローの実行時間を計算
-            const allRuns = await github.rest.actions.listWorkflowRunsForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              created: `>${yesterday.toISOString()}`,
-              per_page: 100
-            });
+            core.setOutput('health_score', healthScore);
+            core.setOutput('has_critical_issues', report.critical_issues.length > 0);
+            core.setOutput('estimated_cost', estimatedCost.toFixed(3));
+            core.setOutput('total_runs', report.cost_analysis.total_runs);
             
-            const totalMinutes = allRuns.data.workflow_runs.reduce((sum, run) => {
-              if (run.updated_at && run.created_at) {
-                const duration = (new Date(run.updated_at) - new Date(run.created_at)) / (1000 * 60);
-                return sum + duration;
-              }
-              return sum;
-            }, 0);
-            
-            const estimatedCost = totalMinutes * 0.008; // GitHub Actionsの概算コスト
-            
-            console.log(`過去24時間のワークフロー実行時間: ${Math.round(totalMinutes)}分`);
+            console.log(`健全性スコア: ${healthScore}%`);
             console.log(`推定コスト: $${estimatedCost.toFixed(3)}`);
             
-            if (totalMinutes > 300) { // 5時間以上
-              console.log('⚠️ ワークフロー実行時間が長すぎます。最適化を検討してください。');
-            }
+            return report;
+
+      - name: Create monitoring report (if issues found)
+        if: steps.analysis.outputs.has_critical_issues == 'true' || github.event.inputs.force_full_check == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const report = ${{ steps.analysis.outputs.result }};
+            const healthScore = '${{ steps.analysis.outputs.health_score }}';
+            const estimatedCost = '${{ steps.analysis.outputs.estimated_cost }}';
+            const totalRuns = '${{ steps.analysis.outputs.total_runs }}';
             
-            if (estimatedCost > 1.0) { // $1以上
-              console.log('⚠️ 日次コストが高額です。実行頻度の見直しを検討してください。');
-            } 
+            const reportBody = `## 🔍 ワークフロー監視レポート\\n\\n### 📊 概要\\n- **健全性スコア**: ${healthScore}%\\n- **24時間の実行回数**: ${totalRuns}回\\n- **推定コスト**: $${estimatedCost}\\n- **重要な問題**: ${report.critical_issues.length}個\\n- **警告**: ${report.warnings.length}個\\n\\n${report.critical_issues.length > 0 ? '### 🚨 重要な問題\\n' + report.critical_issues.map(issue => `- ${issue}`).join('\\n') + '\\n\\n**即座に対応が必要です！**\\n\\n' : ''}${report.warnings.length > 0 ? '### ⚠️ 警告\\n' + report.warnings.map(warning => `- ${warning}`).join('\\n') + '\\n\\n' : ''}### 💰 コスト分析\\n- 総実行時間: ${Math.round(report.cost_analysis.total_minutes)}分\\n- 失敗による無駄: ${report.cost_analysis.failed_runs}回\\n- 効率化の余地: ${report.cost_analysis.failed_runs > 0 ? '有り' : '無し'}\\n\\n### 🔧 推奨アクション\\n${report.critical_issues.length > 0 ? '- [ ] 重要ワークフローの緊急修正\\n' : ''}${report.cost_analysis.total_minutes > 300 ? '- [ ] 実行時間の最適化\\n' : ''}${report.cost_analysis.failed_runs > 10 ? '- [ ] 失敗率の改善\\n' : ''}- [ ] ワークフロー設定の見直し\\n- [ ] 不要な実行の削減\\n\\n---\\n*最適化された監視システム - 12時間ごと実行*`;
+
+            // 既存の監視レポートをチェック
+            const existingReports = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'workflow-monitor',
+              state: 'open'
+            });
+
+            const today = new Date().toISOString().split('T')[0];
+            const existingToday = existingReports.data.find(issue => 
+              issue.title.includes('ワークフロー監視') && 
+              issue.title.includes(today)
+            );
+
+            if (!existingToday) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[monitor] ワークフロー監視レポート - ${today}`,
+                body: reportBody,
+                labels: ['workflow-monitor', 'auto-detected', report.critical_issues.length > 0 ? 'urgent' : 'low-priority']
+              });
+              
+              console.log('監視レポートを作成しました');
+            } else {
+              console.log('今日の監視レポートは既に存在します');
+            }
+
+      - name: Auto-optimization suggestions
+        if: steps.analysis.outputs.estimated_cost > 2.0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('⚠️ 高コスト検出: 自動最適化を提案します');
+            
+            const suggestions = [
+              '実行頻度の削減（30分→1時間）',
+              'timeout設定の短縮',
+              '不要なワークフローの無効化',
+              'concurrency設定の追加',
+              '条件分岐の最適化'
+            ];
+            
+            console.log('最適化提案:');
+            suggestions.forEach(suggestion => console.log(`- ${suggestion}`));
+
+      - name: Success notification
+        if: steps.analysis.outputs.has_critical_issues == 'false' && steps.analysis.outputs.health_score >= 80
+        run: |
+          echo "✅ ワークフローは正常に動作しています"
+          echo "健全性スコア: ${{ steps.analysis.outputs.health_score }}%"
+          echo "推定コスト: $${{ steps.analysis.outputs.estimated_cost }}" 

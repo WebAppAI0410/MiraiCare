@@ -1,0 +1,260 @@
+name: Claude Master Workflow
+
+on:
+  pull_request_review:
+    types: [submitted]
+  workflow_run:
+    workflows: ["RN Unit CI"]
+    types: [completed]
+    branches: [main]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      action_type:
+        description: '実行アクション'
+        required: true
+        default: 'auto_fix'
+        type: choice
+        options:
+          - auto_fix
+          - coderabbit_response
+          - quality_check
+
+jobs:
+  claude-dispatcher:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: claude-master-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+      cancel-in-progress: true
+    
+    outputs:
+      action_type: ${{ steps.determine_action.outputs.action_type }}
+      should_proceed: ${{ steps.determine_action.outputs.should_proceed }}
+    
+    steps:
+      - name: Determine action type
+        id: determine_action
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let actionType = 'none';
+            let shouldProceed = false;
+            
+            // Manual dispatch
+            if (context.eventName === 'workflow_dispatch') {
+              actionType = context.payload.inputs.action_type;
+              shouldProceed = true;
+            }
+            // CodeRabbit review
+            else if (context.eventName === 'pull_request_review' && 
+                     context.payload.review.user.login === 'coderabbitai[bot]') {
+              actionType = 'coderabbit_response';
+              shouldProceed = true;
+            }
+            // CI failure
+            else if (context.eventName === 'workflow_run' && 
+                     context.payload.workflow_run.conclusion === 'failure') {
+              actionType = 'auto_fix';
+              shouldProceed = true;
+            }
+            // Claude mention
+            else if (context.eventName === 'issue_comment' && 
+                     context.payload.comment.body.includes('@claude')) {
+              actionType = 'auto_fix';
+              shouldProceed = true;
+            }
+            
+            core.setOutput('action_type', actionType);
+            core.setOutput('should_proceed', shouldProceed);
+            
+            console.log(`Action: ${actionType}, Proceed: ${shouldProceed}`);
+
+  coderabbit-handler:
+    needs: claude-dispatcher
+    if: needs.claude-dispatcher.outputs.action_type == 'coderabbit_response' && needs.claude-dispatcher.outputs.should_proceed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    
+    steps:
+      - name: CodeRabbit Response
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reviewBody = context.payload.review.body;
+            const prNumber = context.payload.pull_request.number;
+            
+            const hasSuggestions = reviewBody.includes('**Suggestion:**') || 
+                                 reviewBody.includes('**提案:**');
+            
+            if (hasSuggestions) {
+              const truncatedReview = reviewBody.length > 500 ? 
+                reviewBody.substring(0, 500) + '...' : reviewBody;
+              
+              const responseText = [
+                '## 🤖 CodeRabbitレビュー検知',
+                '',
+                'CodeRabbitからの提案を検知しました。',
+                '',
+                '### 📝 レビュー内容',
+                truncatedReview,
+                '',
+                '### 🔧 対応方法',
+                '1. 提案された修正を確認',
+                '2. 必要に応じて手動で修正',
+                '3. または @claude メンションで自動修正を依頼',
+                '',
+                '---',
+                '*CodeRabbit統合システム*'
+              ].join('\n');
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: responseText
+              });
+              
+              console.log('CodeRabbitレビューに対応しました');
+            }
+
+  auto-fix-handler:
+    needs: claude-dispatcher
+    if: needs.claude-dispatcher.outputs.action_type == 'auto_fix' && needs.claude-dispatcher.outputs.should_proceed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Quality analysis
+        id: analysis
+        run: |
+          echo "=== 品質分析 ===" | tee analysis.txt
+          
+          # TypeScript
+          echo "typescript_errors=false" >> $GITHUB_OUTPUT
+          if ! npx tsc --noEmit 2>&1 | tee -a analysis.txt; then
+            echo "typescript_errors=true" >> $GITHUB_OUTPUT
+          fi
+          
+          # ESLint
+          echo "eslint_errors=false" >> $GITHUB_OUTPUT
+          if ! npm run lint 2>&1 | tee -a analysis.txt; then
+            echo "eslint_errors=true" >> $GITHUB_OUTPUT
+          fi
+          
+          # Tests
+          echo "test_errors=false" >> $GITHUB_OUTPUT
+          if ! npm test 2>&1 | tee -a analysis.txt; then
+            echo "test_errors=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Claude auto-fix
+        if: steps.analysis.outputs.typescript_errors == 'true' || steps.analysis.outputs.eslint_errors == 'true' || steps.analysis.outputs.test_errors == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const analysisContent = fs.readFileSync('analysis.txt', 'utf8');
+            
+            let targetNumber;
+            let contextInfo = '';
+            
+            // Determine target (PR or Issue)
+            if (context.eventName === 'workflow_run') {
+              // Find related PR
+              const prs = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open'
+              });
+              
+              const pr = prs.data.find(pr => 
+                pr.head.ref === context.payload.workflow_run.head_branch
+              );
+              
+              if (pr) {
+                targetNumber = pr.number;
+                contextInfo = `CI失敗: ${context.payload.workflow_run.name}`;
+              }
+            } else if (context.eventName === 'issue_comment') {
+              targetNumber = context.payload.issue.number;
+              contextInfo = 'Claude メンション';
+            }
+            
+            if (targetNumber) {
+              const reportLines = [
+                '## 🤖 Claude自動修正分析',
+                '',
+                `**トリガー**: ${contextInfo}`,
+                `**TypeScript**: ${steps.analysis.outputs.typescript_errors === 'true' ? '❌ エラー' : '✅ 正常'}`,
+                `**ESLint**: ${steps.analysis.outputs.eslint_errors === 'true' ? '❌ エラー' : '✅ 正常'}`,
+                `**テスト**: ${steps.analysis.outputs.test_errors === 'true' ? '❌ エラー' : '✅ 正常'}`,
+                '',
+                '### 📊 分析結果',
+                '```',
+                analysisContent.substring(0, 1000),
+                '```',
+                '',
+                '### 🔧 推奨対応',
+                '1. 段階的修正: TypeScript → ESLint → テスト',
+                '2. 依存関係確認: package.json更新',
+                '3. 型定義追加: 不足ファイル作成',
+                '',
+                '---',
+                '*Claude Master Workflow*'
+              ];
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: targetNumber,
+                body: reportLines.join('\n')
+              });
+              
+              console.log(`修正分析をPR/Issue #${targetNumber}に投稿しました`);
+            }
+
+  quality-check:
+    needs: claude-dispatcher
+    if: needs.claude-dispatcher.outputs.action_type == 'quality_check' && needs.claude-dispatcher.outputs.should_proceed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Comprehensive quality check
+        run: |
+          echo "=== 品質チェック結果 ==="
+          
+          echo "🔍 TypeScript:"
+          npx tsc --noEmit && echo "✅ 正常" || echo "❌ エラー"
+          
+          echo "🔍 ESLint:"
+          npm run lint && echo "✅ 正常" || echo "❌ エラー"
+          
+          echo "🔍 テスト:"
+          npm test && echo "✅ 正常" || echo "❌ エラー"
+          
+          echo "🔍 依存関係:"
+          npm audit --audit-level=high && echo "✅ 正常" || echo "⚠️ 警告" 

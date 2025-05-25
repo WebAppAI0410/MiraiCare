@@ -1,25 +1,23 @@
-name: Auto Error Detection & Issue Creation
+name: Auto Error Detection (Main Branch Only)
 
 on:
   push:
     branches: [main]
-  pull_request:
-    types: [opened, synchronize]
   workflow_dispatch: {}
-  # workflow_runは削除 - claude-auto-fix-v2.ymlが担当
+  # PRは削除 - claude-auto-fix-v2.ymlが効率的に処理
 
 jobs:
-  detect-errors:
-    if: ${{ github.event.workflow_run.conclusion == 'failure' || always() }}
+  detect-main-errors:
+    # mainブランチでのエラー検知のみ（PRは除外）
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: error-detection-${{ github.ref }}
+      group: error-detection-main
       cancel-in-progress: true
     permissions:
       contents: read
       issues: write
-      pull-requests: write
       actions: read
 
     steps:
@@ -31,164 +29,83 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install dependencies (if possible)
-        run: npm ci || npm install || echo "Dependencies installation failed"
+      - name: Install dependencies
+        run: npm ci || npm install
         continue-on-error: true
 
-      - name: Run linter and collect errors
-        id: lint-check
+      - name: Run comprehensive error check
+        id: error-check
         run: |
-          npm run lint 2>&1 | tee lint-output.txt || echo "Lint failed"
-          if [ $? -ne 0 ]; then
-            echo "lint_failed=true" >> $GITHUB_OUTPUT
+          echo "=== TypeScript Check ===" | tee error-summary.txt
+          npx tsc --noEmit 2>&1 | tee -a error-summary.txt || echo "TypeScript failed"
+          
+          echo -e "\n=== ESLint Check ===" | tee -a error-summary.txt
+          npm run lint 2>&1 | tee -a error-summary.txt || echo "ESLint failed"
+          
+          echo -e "\n=== Test Check ===" | tee -a error-summary.txt
+          npm test 2>&1 | tee -a error-summary.txt || echo "Tests failed"
+          
+          # エラー数をカウント
+          ERROR_COUNT=$(grep -i "error" error-summary.txt | wc -l || echo "0")
+          echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
+          
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "has_errors=true" >> $GITHUB_OUTPUT
           else
-            echo "lint_failed=false" >> $GITHUB_OUTPUT
+            echo "has_errors=false" >> $GITHUB_OUTPUT
           fi
         continue-on-error: true
 
-      - name: Run tests and collect errors
-        id: test-check
-        run: |
-          npm test 2>&1 | tee test-output.txt || echo "Tests failed"
-          if [ $? -ne 0 ]; then
-            echo "test_failed=true" >> $GITHUB_OUTPUT
-          else
-            echo "test_failed=false" >> $GITHUB_OUTPUT
-          fi
-        continue-on-error: true
-
-      - name: Check TypeScript compilation
-        id: tsc-check
-        run: |
-          npx tsc --noEmit 2>&1 | tee tsc-output.txt || echo "TypeScript compilation failed"
-          if [ $? -ne 0 ]; then
-            echo "tsc_failed=true" >> $GITHUB_OUTPUT
-          else
-            echo "tsc_failed=false" >> $GITHUB_OUTPUT
-          fi
-        continue-on-error: true
-
-      - name: Analyze errors and create issue
-        if: always()
+      - name: Create main branch issue (if needed)
+        if: steps.error-check.outputs.has_errors == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
+            const errorSummary = fs.readFileSync('error-summary.txt', 'utf8');
+            const errorCount = '${{ steps.error-check.outputs.error_count }}';
             
-            // Read error outputs
-            let lintErrors = '';
-            let testErrors = '';
-            let tscErrors = '';
-            
-            try {
-              lintErrors = fs.readFileSync('lint-output.txt', 'utf8');
-            } catch (e) {}
-            
-            try {
-              testErrors = fs.readFileSync('test-output.txt', 'utf8');
-            } catch (e) {}
-            
-            try {
-              tscErrors = fs.readFileSync('tsc-output.txt', 'utf8');
-            } catch (e) {}
-
-            // Determine Claude model based on error complexity
-            let claudeModel = '[haiku]';
-            const errorCount = (lintErrors.match(/error/gi) || []).length + 
-                              (testErrors.match(/error/gi) || []).length + 
-                              (tscErrors.match(/error/gi) || []).length;
-            
-            console.log(`Total errors detected: ${errorCount}`);
-            
-            if (errorCount > 10) {
-              claudeModel = '[opus]';
-            } else if (errorCount > 3) {
-              claudeModel = '[sonnet]';
-            }
-            
-            // Only create issue if there are actual errors
-            if (errorCount === 0) {
-              console.log('No errors detected, skipping issue creation');
-              return;
-            }
-
-            // Create comprehensive issue body
-            const issueBody = `@claude ${claudeModel}
-
-            ## 🤖 自動検知されたエラー
-
-            このIssueは自動エラー検知システムによって作成されました。
-
-            ### 📊 エラー概要
-            - Lint エラー: ${(lintErrors.match(/error/gi) || []).length}個
-            - Test エラー: ${(testErrors.match(/error/gi) || []).length}個  
-            - TypeScript エラー: ${(tscErrors.match(/error/gi) || []).length}個
-
-            ### 🔍 詳細なエラー情報
-
-            ${lintErrors ? `#### ESLint エラー
-            \`\`\`
-            ${lintErrors.slice(0, 2000)}
-            \`\`\`
-            ` : ''}
-
-            ${testErrors ? `#### テストエラー
-            \`\`\`
-            ${testErrors.slice(0, 2000)}
-            \`\`\`
-            ` : ''}
-
-            ${tscErrors ? `#### TypeScript エラー
-            \`\`\`
-            ${tscErrors.slice(0, 2000)}
-            \`\`\`
-            ` : ''}
-
-            ### ✅ 修正要求
-            - [ ] すべてのlintエラーを修正
-            - [ ] すべてのテストエラーを修正
-            - [ ] TypeScriptコンパイルエラーを修正
-            - [ ] 不足している依存関係を追加
-            - [ ] 設定ファイルを適切に構成
-
-            ### 🔖 制約
-            - TypeScript strict modeを維持
-            - React Native best practicesに従う
-            - 既存の機能を破壊しない
-            - 適切なテストを追加
-            - アクセシビリティ要件を満たす
-
-            ### 📝 コンテキスト
-            - ブランチ: ${context.ref}
-            - コミット: ${context.sha}
-            - ワークフロー: ${context.workflow}
-            - 実行者: ${context.actor}
-            `;
-
-            // Check if similar issue already exists
+            // 既存のmainブランチエラーIssueをチェック
             const existingIssues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
-              labels: 'auto-detected,bug'
+              labels: 'main-branch-error'
             });
+            
+            if (existingIssues.data.length > 0) {
+              // 既存Issueを更新
+              const issue = existingIssues.data[0];
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `## 🔄 mainブランチエラー更新\\n\\n**コミット**: ${context.sha}\\n**エラー数**: ${errorCount}\\n\\n\`\`\`\\n${errorSummary.slice(0, 1500)}\\n\`\`\``
+              });
+              console.log(`既存Issue #${issue.number} を更新しました`);
+            } else {
+              // 新しいIssueを作成（mainブランチ用のみ）
+              let claudeModel = '[haiku]';
+              if (parseInt(errorCount) > 10) {
+                claudeModel = '[opus]';
+              } else if (parseInt(errorCount) > 3) {
+                claudeModel = '[sonnet]';
+              }
+              
+              const issueBody = `@claude ${claudeModel}\\n\\n## 🚨 mainブランチでエラーが検出されました\\n\\n**重要**: これはmainブランチの品質問題です。優先的に修正してください。\\n\\n### 📊 エラー概要\\n- **エラー数**: ${errorCount}個\\n- **コミット**: ${context.sha}\\n- **発生日時**: ${new Date().toISOString()}\\n\\n### 🔍 詳細なエラー情報\\n\`\`\`\\n${errorSummary.slice(0, 2000)}\\n\`\`\`\\n\\n### ✅ 修正要求\\n- [ ] TypeScriptコンパイルエラーを修正\\n- [ ] ESLintエラーを修正\\n- [ ] テストエラーを修正\\n- [ ] 不足している依存関係を追加\\n\\n### 🎯 修正方針\\n1. **緊急度**: 高（mainブランチの品質問題）\\n2. **対象**: mainブランチで直接修正\\n3. **テスト**: 修正後に全テストを実行\\n4. **確認**: CI通過を確認\\n\\n---\\n*mainブランチ品質監視システムによって自動生成*`;
 
-            const similarIssue = existingIssues.data.find(issue => 
-              issue.title.includes('自動検知されたエラー') && 
-              issue.body.includes(context.sha.slice(0, 7))
-            );
-
-            if (!similarIssue) {
-              // Create new issue
               const issue = await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `[auto] 自動検知されたエラー - ${new Date().toISOString().split('T')[0]}`,
+                title: `🚨 [URGENT] mainブランチエラー検出 - ${new Date().toISOString().split('T')[0]}`,
                 body: issueBody,
-                labels: ['auto-detected', 'bug', 'needs-fix']
+                labels: ['main-branch-error', 'urgent', 'bug']
               });
+              
+              console.log(`mainブランチエラーIssue #${issue.data.number} を作成しました`);
+            }
 
-              console.log(`Created issue #${issue.data.number}`);
-            } else {
-              console.log(`Similar issue already exists: #${similarIssue.number}`);
-            } 
+      - name: Success notification
+        if: steps.error-check.outputs.has_errors == 'false'
+        run: |
+          echo "✅ mainブランチは正常です - エラーは検出されませんでした" 
