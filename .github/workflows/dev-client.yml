@@ -1,0 +1,14 @@
+name: EAS Dev Client
+on:
+  workflow_dispatch: {}
+
+jobs:
+  dev:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: expo/expo-github-action@v8
+        with: { eas-version: latest }
+      - run: eas build --local --profile development --platform all --non-interactive
+      - uses: actions/upload-artifact@v4
+        with: { name: dev-client, path: dist } 

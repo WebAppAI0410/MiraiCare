@@ -1,37 +1,38 @@
-name: Claude Code
+name: Claude Code (dynamic model)
 
 on:
-  issue_comment:
-    types: [created]
-  pull_request_review_comment:
-    types: [created]
-  issues:
-    types: [opened, assigned]
-  pull_request_review:
-    types: [submitted]
+  issue_comment: { types: [created] }
+  issues:        { types: [opened] }
 
 jobs:
   claude:
-    if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    if: startsWith(github.event.comment.body || github.event.issue.body, '@claude')
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+    timeout-minutes: 6
+    concurrency:
+      group: ${{ github.event.issue.url || github.event.comment.issue_url }}
+      cancel-in-progress: true
 
-      - name: Run Claude Code
-        id: claude
-        uses: anthropics/claude-code-action@beta
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: choose
+        run: |
+          ./.github/scripts/choose_model.sh \
+            "${{ github.event.comment.body || github.event.issue.body }}"
+
+      - uses: anthropics/claude-code-action@v0
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt:               "${{ github.event.comment.body || github.event.issue.body }}"
+          anthropic_api_key:    ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_parameters: ${{ steps.choose.outputs.anthropic_parameters }}
+          allowed_tools: |
+            [
+              "GlobTool",
+              "GrepTool",
+              "LS",
+              "Bash(git diff --name-only origin/main)",
+              "Bash(npm test)"
+            ]
+          max_turns: 3
 
