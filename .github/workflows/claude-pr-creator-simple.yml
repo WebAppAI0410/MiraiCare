@@ -38,44 +38,69 @@ jobs:
             let branchesProcessed = 0;
             let branchesRemaining = false;
 
-            const branches = await github.rest.repos.listBranches({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
+            console.log('--- Starting PR Creation Script ---');
+            console.log(`Max branches to process in this run: ${maxBranches}`);
+
+            let allBranches;
+            try {
+              allBranches = await github.rest.repos.listBranches({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+              console.log(`Successfully fetched ${allBranches.data.length} branches in total.`);
+            } catch (error) {
+              core.setFailed(`Failed to list branches: ${error.message}`);
+              return;
+            }
             
-            const claudeBranches = branches.data.filter(branch => 
+            const claudeBranches = allBranches.data.filter(branch => 
               branch.name.startsWith('claude/issue-')
             );
+            console.log(`Found ${claudeBranches.length} branches starting with \'claude/issue-\'.`);
             
-            console.log(`Found ${claudeBranches.length} Claude branches. Max to process: ${maxBranches}`);
+            if (claudeBranches.length === 0) {
+              console.log('No claude/issue-* branches found. Exiting.');
+              core.setOutput('branches_remaining', false);
+              return;
+            }
             
             for (const branch of claudeBranches) {
               if (branchesProcessed >= maxBranches) {
-                console.log('Max branches processed in this run. Remaining branches will be handled in the next run.');
+                console.log('Max branches limit reached for this run. Remaining branches will be handled in the next run.');
                 branchesRemaining = true;
                 break;
               }
 
-              console.log(`Checking branch: ${branch.name}`);
+              console.log(`--- Processing branch: ${branch.name} ---`);
               
-              const existingPRs = await github.rest.pulls.list({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                head: `${context.repo.owner}:${branch.name}`,
-                state: 'all'
-              });
+              let existingPRs;
+              try {
+                existingPRs = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  head: `${context.repo.owner}:${branch.name}`,
+                  state: 'all'
+                });
+                console.log(`Found ${existingPRs.data.length} existing PR(s) for branch ${branch.name}.`);
+              } catch (error) {
+                console.error(`Failed to list PRs for branch ${branch.name}: ${error.message}`);
+                continue; // 次のブランチへ
+              }
               
               if (existingPRs.data.length === 0) {
-                console.log(`No PR found for branch: ${branch.name}`);
+                console.log(`No existing PR found for ${branch.name}. Attempting to create one.`);
                 const match = branch.name.match(/claude\/issue-(\d+)/);
                 if (match) {
                   const issueNumber = match[1];
+                  console.log(`Extracted issue number: ${issueNumber} for branch ${branch.name}.`);
                   try {
                     const issue = await github.rest.issues.get({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
                       issue_number: issueNumber
                     });
+                    console.log(`Successfully fetched details for Issue #${issueNumber}: ${issue.data.title}`);
+                    
                     const pr = await github.rest.pulls.create({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
@@ -84,23 +109,31 @@ jobs:
                       base: 'main',
                       body: `## 🤖 Claude Code Actions による自動実装\n\n### 📋 関連Issue\nCloses #${issueNumber}\n\n### 🎯 実装内容\nClaude Code Actionsにより Issue #${issueNumber} の要件に基づく機能実装が完了しました。\n\n**ブランチ**: \`${branch.name}\`\n\n### ✅ 品質チェック\n- [ ] TypeScript型チェック通過\n- [ ] ESLintエラーなし\n- [ ] ユニットテスト通過\n- [ ] 手動動作確認\n\n---\n*このPRはClaude Code Actionsにより自動生成されました*`
                     });
-                    console.log(`✅ PR作成完了: #${pr.data.number} for Issue #${issueNumber}`);
+                    console.log(`✅ PR #${pr.data.number} created for Issue #${issueNumber} from branch ${branch.name}. URL: ${pr.data.html_url}`);
                     branchesProcessed++;
+                    
                     await github.rest.issues.createComment({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
                       issue_number: issueNumber,
                       body: `## 🎉 PR自動作成完了！\n\nClaude Code Actionsによる実装が完了し、プルリクエストを自動作成しました。\n\n**PR**: #${pr.data.number}\n**ブランチ**: \`${branch.name}\`\n**URL**: ${pr.data.html_url}\n\nレビュー完了後、マージをお願いします！`
                     });
+                    console.log(`Posted comment on Issue #${issueNumber} about new PR.`);
+
                   } catch (error) {
-                    console.error(`Failed to create PR for Issue #${issueNumber}:`, error);
+                    core.setFailed(`Error during PR creation or commenting for Issue #${issueNumber} (branch ${branch.name}): ${error.message}`);
+                    // エラーが発生しても次のブランチの処理を試みる場合は core.setFailed を使わず console.error のみ
+                    console.error(`Error processing Issue #${issueNumber} (branch ${branch.name}): ${error.message}`);
                   }
+                } else {
+                  console.warn(`Could not extract issue number from branch name: ${branch.name}`);
                 }
               } else {
-                console.log(`PR already exists for branch: ${branch.name}`);
+                console.log(`PR already exists for branch ${branch.name}. Skipping.`);
               }
             }
             core.setOutput('branches_remaining', branchesRemaining);
+            console.log('--- Finished PR Creation Script ---');
 
       # 自己再トリガーの代わりにスケジュール実行に依存するため、このステップは削除またはコメントアウト
       # - name: Trigger self if more branches exist 
