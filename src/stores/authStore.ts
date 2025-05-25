@@ -34,7 +34,7 @@ interface AuthStore {
   verifyOTP: (code: string) => Promise<User>;
   
   // ユーティリティ
-  checkMagicLinkStatus: () => boolean;
+  checkMagicLinkStatus: () => Promise<boolean>;
 }
 
 // 認証ストア実装
@@ -62,7 +62,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   // 認証状態の初期化
   initialize: () => {
     const unsubscribe = subscribeToAuthState((user) => {
-      get().setUser(user);
+      set({
+        user,
+        isAuthenticated: !!user,
+        isLoading: false,
+        authMethod: user ? 'email' : null,
+      });
     });
     
     // 初期ユーザー取得
@@ -74,9 +79,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
     
     // Magic Linkログインの確認
-    if (checkForMagicLinkSignIn()) {
-      get().completeMagicLink().catch(console.error);
-    }
+    checkForMagicLinkSignIn().then((isMagicLink) => {
+      if (isMagicLink) {
+        get().completeMagicLink().catch(console.error);
+      }
+    }).catch(console.error);
     
     return unsubscribe;
   },
@@ -165,8 +172,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   // Magic Linkログイン状態の確認
-  checkMagicLinkStatus: () => {
-    return checkForMagicLinkSignIn();
+  checkMagicLinkStatus: async () => {
+    return await checkForMagicLinkSignIn();
   },
 }));
 

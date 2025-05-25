@@ -129,8 +129,10 @@ export const getCurrentUser = (): FirebaseUser | null => {
 // Magic Link認証
 export const sendMagicLink = async (email: string): Promise<void> => {
   try {
+    // Firebase Dynamic Linkドメインを使用（環境変数から取得、なければデフォルト値）
+    const dynamicLinkDomain = process.env.MIRAI_FIREBASE_DYNAMIC_LINK || 'https://miraicare.page.link';
     const actionCodeSettings = {
-      url: 'https://miraicare.app/auth/complete', // ログイン完了後のリダイレクトURL
+      url: `${dynamicLinkDomain}/auth/complete`, // Firebase Dynamic Linkを使用
       handleCodeInApp: true,
     };
     
@@ -145,7 +147,21 @@ export const sendMagicLink = async (email: string): Promise<void> => {
 // Magic Linkでのログイン確認・完了
 export const completeMagicLinkSignIn = async (url?: string): Promise<User> => {
   try {
-    const signInUrl = url || 'https://miraicare.app/auth/complete';
+    // 実際のディープリンクURLを取得（React Native Linkingから）
+    let signInUrl = url;
+    if (!signInUrl) {
+      // expo-linkingを動的にインポートしてディープリンクURLを取得
+      try {
+        const Linking = await import('expo-linking');
+        signInUrl = await Linking.default.getInitialURL();
+      } catch (linkingError) {
+        console.warn('Expo Linkingが利用できません。URLパラメータを確認してください。');
+      }
+    }
+
+    if (!signInUrl) {
+      throw new Error('マジックリンクが検出できませんでした。');
+    }
     
     if (isSignInWithEmailLink(auth, signInUrl)) {
       let email = await AsyncStorage.getItem('emailForSignIn');
@@ -263,9 +279,29 @@ export const verifyOTPCode = async (code: string): Promise<User> => {
 };
 
 // Magic Linkログインの状態確認
-export const checkForMagicLinkSignIn = (url?: string): boolean => {
-  const checkUrl = url || 'https://miraicare.app/auth/complete';
-  return isSignInWithEmailLink(auth, checkUrl);
+export const checkForMagicLinkSignIn = async (url?: string): Promise<boolean> => {
+  try {
+    let checkUrl = url;
+    if (!checkUrl) {
+      // expo-linkingを動的にインポートしてディープリンクURLを取得
+      try {
+        const Linking = await import('expo-linking');
+        checkUrl = await Linking.default.getInitialURL();
+      } catch (linkingError) {
+        console.warn('Expo Linkingが利用できません。');
+        return false;
+      }
+    }
+    
+    if (!checkUrl) {
+      return false;
+    }
+    
+    return isSignInWithEmailLink(auth, checkUrl);
+  } catch (error) {
+    console.warn('Magic Link状態確認エラー:', error);
+    return false;
+  }
 };
 
 // エラーハンドリング（高齢者にとって分かりやすいメッセージ）
