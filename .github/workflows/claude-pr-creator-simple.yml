@@ -5,12 +5,18 @@ on:
     workflows: ["Claude Code Actions"]
     types: [completed]
     branches: [main]
+  workflow_dispatch: # 手動実行トリガーを追加
+    inputs:
+      max_branches_to_process:
+        description: '1回の実行で処理する最大ブランチ数'
+        required: false
+        default: '5' 
 
 jobs:
   create-pr:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20 # タイムアウトを20分に延長
     permissions:
       contents: read
       pull-requests: write
@@ -26,6 +32,9 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const maxBranches = parseInt(process.env.INPUT_MAX_BRANCHES_TO_PROCESS || '${{ github.event.inputs.max_branches_to_process || 5 }}');
+            let branchesProcessed = 0;
+
             // 全てのclaude/issue-*ブランチを取得
             const branches = await github.rest.repos.listBranches({
               owner: context.repo.owner,
@@ -36,9 +45,14 @@ jobs:
               branch.name.startsWith('claude/issue-')
             );
             
-            console.log(`Found ${claudeBranches.length} Claude branches`);
+            console.log(`Found ${claudeBranches.length} Claude branches. Max to process: ${maxBranches}`);
             
             for (const branch of claudeBranches) {
+              if (branchesProcessed >= maxBranches) {
+                console.log('Max branches processed in this run. Remaining branches will be handled in the next run.');
+                break;
+              }
+
               console.log(`Checking branch: ${branch.name}`);
               
               // 既存PRをチェック
@@ -76,6 +90,7 @@ jobs:
                     });
                     
                     console.log(`✅ PR作成完了: #${pr.data.number} for Issue #${issueNumber}`);
+                    branchesProcessed++;
                     
                     // Issue通知
                     await github.rest.issues.createComment({
@@ -93,3 +108,14 @@ jobs:
                 console.log(`PR already exists for branch: ${branch.name}`);
               }
             } 
+
+      - name: Trigger self if more branches exist
+        if: steps.find_branches.outputs.processed_all == 'false' # この出力は現在設定されていない
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // このステップは未完成。
+            // 本来は find_branches ステップで全ブランチ処理完了フラグを出力し、
+            // ここで未完了なら自身を再トリガーするロジックが必要。
+            // 現状では手動またはスケジュール実行で残りを処理。
+            console.log('Further PR creation might be needed if not all branches were processed.'); 
