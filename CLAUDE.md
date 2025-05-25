@@ -1,92 +1,152 @@
-# CLAUDE.md
+# Claude Code 設定 - MiraiCare
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## プロジェクト概要
+MiraiCareは高齢者向けヘルスケアSaaSプラットフォームです。Expo React Native、TypeScript、Supabaseを使用して開発されています。
 
-## Project Overview
+## コーディング標準
 
-MiraiCare 360 is a React Native (Expo) healthcare SaaS application targeting elderly users (65-79) and their families in Japan. It provides integrated fall/frailty/mental health risk assessment and family notification via LINE Notify.
+### TypeScript
+- 厳密なTypeScript設定を維持する
+- すべての型を明示的に定義する
+- `any`型の使用を避ける
+- インターフェースとタイプエイリアスを適切に使用する
 
-## Common Development Commands
+### React Native
+- 関数コンポーネントとHooksを使用する
+- プロップスの型定義を必須とする
+- アクセシビリティ要件を満たす（accessibilityLabel、accessibilityRole等）
+- パフォーマンスを考慮したコンポーネント設計
 
-```bash
-# Development
-npm start                 # Start Expo development server
-npm run ios              # Run on iOS simulator (macOS required)
-npm run android          # Run on Android emulator/device
-npm run web              # Run on web browser
-
-# Quality Assurance
-npm run lint             # Run ESLint for code quality
-npm test                 # Run Jest tests
-
-# Package Management
-npm install              # Install dependencies
+### ファイル構造
+```
+src/
+├── components/     # 再利用可能なコンポーネント
+├── screens/        # 画面コンポーネント
+├── navigation/     # ナビゲーション設定
+├── services/       # API呼び出しとビジネスロジック
+├── stores/         # 状態管理（Zustand）
+├── hooks/          # カスタムHooks
+├── types/          # TypeScript型定義
+├── utils/          # ユーティリティ関数
+└── config/         # 設定ファイル
 ```
 
-## Architecture & Core Structure
+## レビュー基準
 
-### App Flow & Navigation
-- **App.tsx**: Main entry point handling authentication state and conditional rendering
-- **src/navigation/AppNavigator.tsx**: Navigation structure with Tab navigator for main screens and Stack navigator for modal screens
-- Authentication gates: LoginScreen → OnboardingScreen (new users) → Main Tab Navigator
+### 必須チェック項目
+- [ ] TypeScriptエラーがない
+- [ ] ESLintエラーがない
+- [ ] テストが通る
+- [ ] アクセシビリティ要件を満たす
+- [ ] セキュリティベストプラクティスに従う
+- [ ] パフォーマンスへの影響を考慮
 
-### Key Architectural Patterns
+### コードレビューポイント
+- 可読性と保守性
+- エラーハンドリングの適切性
+- セキュリティ脆弱性の有無
+- パフォーマンスの最適化
+- テストカバレッジ
 
-1. **Firebase-First Architecture**
-   - Firebase Auth for authentication with Firestore user document sync
-   - Real-time Firestore listeners for live data updates
-   - Centralized Firebase configuration in `src/config/firebase.ts`
-   - Type-safe Firestore operations with defined collections (`COLLECTIONS` constant)
+## プロジェクト固有のルール
 
-2. **Type System Organization**
-   - All types centralized in `src/types/index.ts`
-   - Separate interfaces for User, VitalData, MoodData, RiskScore, Badge, Reminder
-   - Navigation types (RootStackParamList, TabParamList) for type-safe navigation
-   - Accessibility-focused design tokens (Colors, FontSizes, TouchTargets, Spacing)
+### 依存関係管理
+- 必要最小限の依存関係のみ追加
+- セキュリティ脆弱性のあるパッケージは使用しない
+- 定期的な依存関係の更新
 
-3. **Screen Architecture**
-   - Tab-based main navigation: Home, Activity, Mood, Settings
-   - Stack-based modal screens: Reminders, Badges, Reminiscence, CBTCoach
-   - Each screen component follows consistent naming: `[Name]Screen.tsx`
+### エラーハンドリング
+- すべてのAPI呼び出しでエラーハンドリングを実装
+- ユーザーフレンドリーなエラーメッセージ
+- ログ記録の適切な実装
 
-4. **Service Layer**
-   - `src/services/authService.ts`: Authentication operations with user-friendly Japanese error messages
-   - Real-time Firebase Auth state subscription with Firestore user sync
-   - Centralized error handling for elderly users (simplified, clear messages)
+### セキュリティ
+- 機密情報をコードに含めない
+- 適切な認証・認可の実装
+- データ暗号化の考慮
 
-### Accessibility & Elderly-First Design
-- **High Contrast**: All colors meet WCAG 4.5:1 contrast requirements
-- **Large Touch Targets**: Minimum 56dp, recommended 64dp+ for buttons
-- **Large Fonts**: Minimum 20pt, standard 24pt, important content 36pt+
-- **Clear Navigation**: Simple tab structure, emoji icons for visual clarity
-- **Japanese Localization**: All user-facing text in Japanese
+## 好ましいパターン
 
-### Development Workflow Rules
-- Follow project-specific conventions from `.cursor/rules/miraicare-rule.mdc`
-- Reference requirements (`doc/requirements.md`), features (`doc/features.md`), and screen designs (`doc/screen_design.md`) before implementing
-- Confirm requirements before implementation - do not proceed without 95%+ confidence
-- Firebase-first approach for all backend operations
-- TypeScript strict mode enabled - maintain type safety
-- Focus on simplicity and clarity for elderly users
-
-### Key Firebase Collections
+### 状態管理
 ```typescript
-COLLECTIONS = {
-  USERS: 'users',
-  VITALS: 'vitals', 
-  MOODS: 'moods',
-  REMINDERS: 'reminders',
-  BADGES: 'badges'
+// Zustandを使用した状態管理
+import { create } from 'zustand';
+
+interface UserStore {
+  user: User | null;
+  setUser: (user: User) => void;
+  clearUser: () => void;
 }
+
+export const useUserStore = create<UserStore>((set) => ({
+  user: null,
+  setUser: (user) => set({ user }),
+  clearUser: () => set({ user: null }),
+}));
 ```
 
-### Environment & Dependencies
-- Expo ~53.0.9 with React Native 0.79.2
-- Firebase 11.8.1 for backend services
-- React Navigation 7.x for navigation
-- TypeScript ~5.8.3 with strict mode
-- Development on Windows environment
+### API呼び出し
+```typescript
+// サービス層でのAPI呼び出し
+export const userService = {
+  async getUser(id: string): Promise<User> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Failed to fetch user:', error);
+      throw new Error('ユーザー情報の取得に失敗しました');
+    }
+  }
+};
+```
 
-When implementing new features, always check existing patterns in similar components, maintain the established Firebase-first architecture, and prioritize accessibility for elderly users.
+### コンポーネント設計
+```typescript
+// 適切なプロップス型定義とアクセシビリティ
+interface ButtonProps {
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+  variant?: 'primary' | 'secondary';
+}
 
-特に、エラーが発生してそれを解決しようとしている時は、よく調べてよくThinkしてメタ認知を働かせてコードの修正を行ってください。95%の確証を得るまでsequential thinkingを行ってください。
+export const Button: React.FC<ButtonProps> = ({
+  title,
+  onPress,
+  disabled = false,
+  variant = 'primary'
+}) => {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      style={[styles.button, styles[variant], disabled && styles.disabled]}
+    >
+      <Text style={styles.text}>{title}</Text>
+    </TouchableOpacity>
+  );
+};
+```
+
+## 自動修正の優先順位
+
+1. **高優先度**: セキュリティ脆弱性、TypeScriptエラー
+2. **中優先度**: ESLintエラー、テスト失敗
+3. **低優先度**: コードスタイル、最適化提案
+
+## 制約事項
+
+- 既存の機能を破壊しない
+- パフォーマンスを悪化させない
+- セキュリティレベルを下げない
+- アクセシビリティ要件を満たす
+- プロジェクトの依存関係ポリシーに従う

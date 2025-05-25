@@ -1,38 +1,47 @@
-name: Claude Code (dynamic model)
+name: Claude Code Actions
 
 on:
-  issue_comment: { types: [created] }
-  issues:        { types: [opened] }
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created, edited]
+  pull_request:
+    types: [opened, edited, synchronize]
+  pull_request_review_comment:
+    types: [created, edited]
 
 jobs:
   claude:
-    if: startsWith(github.event.comment.body || github.event.issue.body, '@claude')
+    if: contains(github.event.comment.body, '@claude') || contains(github.event.issue.body, '@claude') || contains(github.event.pull_request.body, '@claude')
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 30
     concurrency:
-      group: ${{ github.event.issue.url || github.event.comment.issue_url }}
-      cancel-in-progress: true
+      group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: read
 
     steps:
-      - uses: actions/checkout@v4
-
-      - id: choose
-        run: |
-          ./.github/scripts/choose_model.sh \
-            "${{ github.event.comment.body || github.event.issue.body }}"
-
-      - uses: anthropics/claude-code-action@v0
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
         with:
-          prompt:               "${{ github.event.comment.body || github.event.issue.body }}"
-          anthropic_api_key:    ${{ secrets.ANTHROPIC_API_KEY }}
-          anthropic_parameters: ${{ steps.choose.outputs.anthropic_parameters }}
+          app-id: ${{ secrets.CLAUDE_APP_ID }}
+          private-key: ${{ secrets.CLAUDE_PRIVATE_KEY }}
+
+      - name: Claude Code Action
+        uses: anthropics/claude-code-action@v1
+        with:
+          trigger_phrase: "@claude"
+          timeout_minutes: "30"
+          github_token: ${{ steps.app-token.outputs.token }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: 10
           allowed_tools: |
-            [
-              "GlobTool",
-              "GrepTool",
-              "LS",
-              "Bash(git diff --name-only origin/main)",
-              "Bash(npm test)"
-            ]
-          max_turns: 3
+            - str_replace_editor
+            - bash
+            - computer
 
