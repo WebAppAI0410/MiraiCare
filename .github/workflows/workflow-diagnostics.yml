@@ -1,0 +1,254 @@
+name: Workflow Diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_workflow:
+        description: '診断対象のワークフロー名'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - claude.yml
+          - auto-error-detection.yml
+          - auto-issue-management.yml
+          - health-check.yml
+  schedule:
+    - cron: '0 */6 * * *'  # 6時間ごとに実行
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprehensive Workflow Diagnostics
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // 診断対象ワークフロー
+            const workflows = [
+              { name: 'claude.yml', displayName: 'Claude Code Actions' },
+              { name: 'auto-error-detection.yml', displayName: 'Auto Error Detection' },
+              { name: 'auto-issue-management.yml', displayName: 'Auto Issue Management' },
+              { name: 'health-check.yml', displayName: 'Project Health Check' },
+              { name: 'workflow-monitor.yml', displayName: 'Workflow Monitor' }
+            ];
+            
+            let diagnosticReport = {
+              summary: { total: 0, working: 0, issues: 0 },
+              details: [],
+              recommendations: []
+            };
+            
+            for (const workflow of workflows) {
+              diagnosticReport.summary.total++;
+              
+              try {
+                // ワークフロー実行履歴を取得
+                const runs = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: workflow.name,
+                  per_page: 10
+                });
+                
+                const recentRuns = runs.data.workflow_runs.slice(0, 5);
+                const successCount = recentRuns.filter(run => run.conclusion === 'success').length;
+                const failureCount = recentRuns.filter(run => run.conclusion === 'failure').length;
+                const totalRuns = recentRuns.length;
+                
+                let status = '✅ 正常';
+                let issues = [];
+                
+                // 診断ロジック
+                if (totalRuns === 0) {
+                  status = '❌ 未実行';
+                  issues.push('ワークフローが一度も実行されていません');
+                  diagnosticReport.summary.issues++;
+                } else if (failureCount / totalRuns > 0.5) {
+                  status = '🔴 高失敗率';
+                  issues.push(`失敗率が高すぎます (${Math.round(failureCount/totalRuns*100)}%)`);
+                  diagnosticReport.summary.issues++;
+                } else if (failureCount > 0) {
+                  status = '🟡 部分的問題';
+                  issues.push(`最近の実行で${failureCount}回失敗しています`);
+                } else {
+                  diagnosticReport.summary.working++;
+                }
+                
+                // 特定ワークフローの詳細診断
+                if (workflow.name === 'claude.yml') {
+                  // Claude Code Actions特有の診断
+                  if (totalRuns === 0) {
+                    issues.push('GitHub App設定が不完全な可能性があります');
+                    issues.push('CLAUDE_APP_ID/CLAUDE_PRIVATE_KEYの設定を確認してください');
+                  }
+                  
+                  // @claudeメンションがあるIssueをチェック
+                  const claudeIssues = await github.rest.issues.listForRepo({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    state: 'open',
+                    per_page: 10
+                  });
+                  
+                  const mentionedIssues = claudeIssues.data.filter(issue => 
+                    issue.body && issue.body.includes('@claude')
+                  );
+                  
+                  if (mentionedIssues.length > 0 && totalRuns === 0) {
+                    issues.push(`@claudeメンションがある${mentionedIssues.length}個のIssueに応答していません`);
+                  }
+                }
+                
+                diagnosticReport.details.push({
+                  workflow: workflow.displayName,
+                  file: workflow.name,
+                  status: status,
+                  runs: totalRuns,
+                  success: successCount,
+                  failure: failureCount,
+                  issues: issues,
+                  lastRun: totalRuns > 0 ? recentRuns[0].created_at : 'なし'
+                });
+                
+              } catch (error) {
+                diagnosticReport.summary.issues++;
+                diagnosticReport.details.push({
+                  workflow: workflow.displayName,
+                  file: workflow.name,
+                  status: '❌ エラー',
+                  runs: 0,
+                  success: 0,
+                  failure: 0,
+                  issues: [`診断エラー: ${error.message}`],
+                  lastRun: 'なし'
+                });
+              }
+            }
+            
+            // 推奨事項の生成
+            if (diagnosticReport.summary.issues > 0) {
+              diagnosticReport.recommendations.push('失敗しているワークフローの詳細ログを確認してください');
+              diagnosticReport.recommendations.push('GitHub Secretsの設定を確認してください');
+              diagnosticReport.recommendations.push('依存関係とパッケージの設定を確認してください');
+            }
+            
+            // Repository Secretsの確認（可能な範囲で）
+            try {
+              const secrets = await github.rest.actions.listRepoSecrets({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+              
+              const requiredSecrets = ['ANTHROPIC_API_KEY'];
+              const missingSecrets = requiredSecrets.filter(secret => 
+                !secrets.data.secrets.some(s => s.name === secret)
+              );
+              
+              if (missingSecrets.length > 0) {
+                diagnosticReport.recommendations.push(`不足しているSecrets: ${missingSecrets.join(', ')}`);
+              }
+              
+            } catch (error) {
+              console.log('Secrets確認をスキップ:', error.message);
+            }
+            
+            // レポート生成
+            const reportBody = `## 🔍 ワークフロー診断レポート
+
+            ### 📊 概要
+            - **総ワークフロー数**: ${diagnosticReport.summary.total}
+            - **正常動作**: ${diagnosticReport.summary.working}
+            - **問題あり**: ${diagnosticReport.summary.issues}
+            - **健全性スコア**: ${Math.round((diagnosticReport.summary.working / diagnosticReport.summary.total) * 100)}%
+
+            ### 📋 詳細診断結果
+
+            ${diagnosticReport.details.map(detail => `
+            #### ${detail.status} ${detail.workflow}
+            - **ファイル**: \`${detail.file}\`
+            - **実行回数**: ${detail.runs}回 (成功: ${detail.success}, 失敗: ${detail.failure})
+            - **最終実行**: ${detail.lastRun}
+            ${detail.issues.length > 0 ? `- **問題**: ${detail.issues.map(issue => `\n  - ${issue}`).join('')}` : ''}
+            `).join('\n')}
+
+            ### 🔧 推奨アクション
+            ${diagnosticReport.recommendations.map(rec => `- [ ] ${rec}`).join('\n')}
+
+            ### 📝 次のステップ
+            1. 失敗しているワークフローの詳細ログを確認
+            2. 必要なSecrets・設定の追加
+            3. 依存関係の修正
+            4. 再テスト実行
+
+            ---
+            *診断実行時刻: ${new Date().toISOString()}*
+            `;
+            
+            console.log('=== ワークフロー診断結果 ===');
+            console.log(`健全性スコア: ${Math.round((diagnosticReport.summary.working / diagnosticReport.summary.total) * 100)}%`);
+            console.log(`正常: ${diagnosticReport.summary.working}, 問題: ${diagnosticReport.summary.issues}`);
+            
+            // 問題がある場合はIssueを作成
+            if (diagnosticReport.summary.issues > 0) {
+              const existingIssues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: 'workflow-diagnostics',
+                state: 'open'
+              });
+              
+              const today = new Date().toISOString().split('T')[0];
+              const existingToday = existingIssues.data.find(issue => 
+                issue.title.includes('ワークフロー診断') && 
+                issue.title.includes(today)
+              );
+              
+              if (!existingToday) {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `[診断] ワークフロー診断レポート - ${today}`,
+                  body: reportBody,
+                  labels: ['workflow-diagnostics', 'needs-fix']
+                });
+                
+                console.log('診断レポートIssueを作成しました');
+              }
+            }
+
+      - name: Update workflow status documentation
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // doc/workflow-status.mdを自動更新
+            const fs = require('fs');
+            const path = 'doc/workflow-status.md';
+            
+            try {
+              let content = fs.readFileSync(path, 'utf8');
+              
+              // 最終更新時刻を更新
+              const now = new Date().toISOString();
+              content = content.replace(
+                /\*最終更新: .*\*/,
+                `*最終更新: ${now}*`
+              );
+              
+              fs.writeFileSync(path, content);
+              console.log('ワークフロー状況ドキュメントを更新しました');
+              
+            } catch (error) {
+              console.log('ドキュメント更新をスキップ:', error.message);
+            } 
