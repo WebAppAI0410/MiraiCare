@@ -1,0 +1,189 @@
+name: Claude Post-Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  validate-claude-changes:
+    # Claude Codeによるコミットかを判定
+    if: contains(github.event.head_commit.author.name, 'github-actions') || contains(github.event.head_commit.message, '[claude]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # 前のコミットとの比較のため
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package.json ]; then
+            npm ci || npm install
+          fi
+
+      - name: Run TypeScript check
+        id: typescript
+        run: |
+          if [ -f tsconfig.json ]; then
+            npx tsc --noEmit || echo "typescript_errors=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run ESLint
+        id: eslint
+        run: |
+          if [ -f .eslintrc.js ] || [ -f .eslintrc.json ]; then
+            npx eslint . --ext .ts,.tsx --format json --output-file eslint-results.json || echo "eslint_errors=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests
+        id: tests
+        run: |
+          if [ -f package.json ] && grep -q '"test"' package.json; then
+            npm test -- --coverage --watchAll=false || echo "test_errors=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build check
+        id: build
+        run: |
+          if [ -f package.json ] && grep -q '"build"' package.json; then
+            npm run build || echo "build_errors=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Analyze changes
+        id: analysis
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // 変更されたファイルを取得
+            const { execSync } = require('child_process');
+            const changedFiles = execSync('git diff --name-only HEAD~1 HEAD', { encoding: 'utf8' }).trim().split('\n');
+            
+            // エラー状況を確認
+            const hasTypeScriptErrors = '${{ steps.typescript.outputs.typescript_errors }}' === 'true';
+            const hasESLintErrors = '${{ steps.eslint.outputs.eslint_errors }}' === 'true';
+            const hasTestErrors = '${{ steps.tests.outputs.test_errors }}' === 'true';
+            const hasBuildErrors = '${{ steps.build.outputs.build_errors }}' === 'true';
+            
+            const totalErrors = [hasTypeScriptErrors, hasESLintErrors, hasTestErrors, hasBuildErrors].filter(Boolean).length;
+            
+            // 品質スコア計算
+            const qualityScore = Math.max(0, 100 - (totalErrors * 25));
+            
+            // 結果をまとめる
+            const validationResult = {
+              qualityScore,
+              hasErrors: totalErrors > 0,
+              changedFiles: changedFiles.filter(f => f.length > 0),
+              errors: {
+                typescript: hasTypeScriptErrors,
+                eslint: hasESLintErrors,
+                tests: hasTestErrors,
+                build: hasBuildErrors
+              }
+            };
+            
+            console.log('Validation Result:', JSON.stringify(validationResult, null, 2));
+            
+            // 結果をアウトプットに設定
+            core.setOutput('quality_score', qualityScore);
+            core.setOutput('has_errors', totalErrors > 0);
+            core.setOutput('total_errors', totalErrors);
+
+      - name: Create validation report
+        if: steps.analysis.outputs.has_errors == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const qualityScore = '${{ steps.analysis.outputs.quality_score }}';
+            const totalErrors = '${{ steps.analysis.outputs.total_errors }}';
+            
+            const reportBody = `## 🔍 Claude修正後の品質チェック結果
+            
+            **品質スコア**: ${qualityScore}/100 ${qualityScore >= 75 ? '✅' : qualityScore >= 50 ? '⚠️' : '❌'}
+            
+            ### 検出された問題 (${totalErrors}件)
+            
+            ${${{ steps.typescript.outputs.typescript_errors }} === 'true' ? '❌ **TypeScriptエラー**: 型チェックに失敗' : '✅ TypeScript: 正常'}
+            ${${{ steps.eslint.outputs.eslint_errors }} === 'true' ? '❌ **ESLintエラー**: コード品質に問題' : '✅ ESLint: 正常'}
+            ${${{ steps.tests.outputs.test_errors }} === 'true' ? '❌ **テストエラー**: テストが失敗' : '✅ テスト: 正常'}
+            ${${{ steps.build.outputs.build_errors }} === 'true' ? '❌ **ビルドエラー**: ビルドに失敗' : '✅ ビルド: 正常'}
+            
+            ### 🎯 推奨アクション
+            
+            ${qualityScore < 50 ? `
+            **緊急対応が必要です**:
+            1. Claude修正内容の詳細レビュー
+            2. 手動での追加修正
+            3. 再度の品質チェック実行
+            ` : qualityScore < 75 ? `
+            **追加修正を推奨します**:
+            1. 残存エラーの確認
+            2. 必要に応じて追加修正
+            ` : `
+            **品質良好です**:
+            - 軽微な問題のみ、必要に応じて修正
+            `}
+            
+            ### 🤖 自動対応
+            
+            ${totalErrors > 0 ? `
+            新しいIssueを自動作成し、残存問題の修正を依頼します。
+            ` : `
+            すべてのチェックが正常に完了しました。
+            `}
+            
+            ---
+            *Claude修正後品質チェックシステム*`;
+            
+            // 新しいIssueを作成（エラーがある場合）
+            if (totalErrors > 0) {
+              const newIssue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[Claude修正後] 品質チェックで問題検出 (スコア: ${qualityScore}/100)`,
+                body: reportBody + `
+                
+                ### 📊 詳細情報
+                
+                - **元のコミット**: ${context.sha}
+                - **修正者**: Claude Code
+                - **検証時刻**: ${new Date().toISOString()}
+                
+                @claude この問題を修正してください。`,
+                labels: ['claude-validation', 'needs-fix', 'auto-detected']
+              });
+              
+              console.log(`新しいIssue #${newIssue.data.number} を作成しました`);
+            }
+
+      - name: Update commit status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const qualityScore = parseInt('${{ steps.analysis.outputs.quality_score }}');
+            const hasErrors = '${{ steps.analysis.outputs.has_errors }}' === 'true';
+            
+            const state = qualityScore >= 75 ? 'success' : qualityScore >= 50 ? 'pending' : 'failure';
+            const description = `品質スコア: ${qualityScore}/100 ${hasErrors ? '(問題あり)' : '(正常)'}`;
+            
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: state,
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: description,
+              context: 'Claude Post-Validation'
+            }); 
