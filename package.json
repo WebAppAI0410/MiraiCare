@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint . --ext .ts,.tsx",
+    "claude": "wsl -d Ubuntu-22.04 -- claude",
+    "claude-chat": "wsl -d Ubuntu-22.04 -- claude chat"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.3.13",

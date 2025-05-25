@@ -1,0 +1,40 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start Claude CLI in WSL",
+            "type": "shell",
+            "command": "wsl",
+            "args": ["-d", "Ubuntu-22.04", "--", "bash", "-c", "cd /mnt/c/Users/33916/MiraiCare && claude"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false,
+                "revealProblems": "onProblem"
+            },
+            "runOptions": {
+                "runOn": "folderOpen"
+            },
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Setup WSL Claude Environment",
+            "type": "shell",
+            "command": "wsl",
+            "args": ["-d", "Ubuntu-22.04", "--", "bash", "-c", "cd /mnt/c/Users/33916/MiraiCare && claude --version || echo 'Claude CLI not found. Please install it first.'"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+} 
