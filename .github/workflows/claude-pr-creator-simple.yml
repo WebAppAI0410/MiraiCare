@@ -5,18 +5,20 @@ on:
     workflows: ["Claude Code Actions"]
     types: [completed]
     branches: [main]
-  workflow_dispatch: # 手動実行トリガーを追加
+  schedule: # スケジュール実行を追加
+    - cron: '0 */1 * * *' # 1時間ごとに実行
+  workflow_dispatch:
     inputs:
       max_branches_to_process:
         description: '1回の実行で処理する最大ブランチ数'
         required: false
-        default: '5' 
+        default: '5'
 
 jobs:
   create-pr:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    timeout-minutes: 20 # タイムアウトを20分に延長
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
@@ -34,8 +36,8 @@ jobs:
           script: |
             const maxBranches = parseInt(process.env.INPUT_MAX_BRANCHES_TO_PROCESS || '${{ github.event.inputs.max_branches_to_process || 5 }}');
             let branchesProcessed = 0;
+            let branchesRemaining = false;
 
-            // 全てのclaude/issue-*ブランチを取得
             const branches = await github.rest.repos.listBranches({
               owner: context.repo.owner,
               repo: context.repo.repo
@@ -50,12 +52,12 @@ jobs:
             for (const branch of claudeBranches) {
               if (branchesProcessed >= maxBranches) {
                 console.log('Max branches processed in this run. Remaining branches will be handled in the next run.');
+                branchesRemaining = true;
                 break;
               }
 
               console.log(`Checking branch: ${branch.name}`);
               
-              // 既存PRをチェック
               const existingPRs = await github.rest.pulls.list({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -65,21 +67,15 @@ jobs:
               
               if (existingPRs.data.length === 0) {
                 console.log(`No PR found for branch: ${branch.name}`);
-                
-                // Issue番号を抽出
                 const match = branch.name.match(/claude\/issue-(\d+)/);
                 if (match) {
                   const issueNumber = match[1];
-                  
                   try {
-                    // Issueの詳細を取得
                     const issue = await github.rest.issues.get({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
                       issue_number: issueNumber
                     });
-                    
-                    // PRを作成
                     const pr = await github.rest.pulls.create({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
@@ -88,18 +84,14 @@ jobs:
                       base: 'main',
                       body: `## 🤖 Claude Code Actions による自動実装\n\n### 📋 関連Issue\nCloses #${issueNumber}\n\n### 🎯 実装内容\nClaude Code Actionsにより Issue #${issueNumber} の要件に基づく機能実装が完了しました。\n\n**ブランチ**: \`${branch.name}\`\n\n### ✅ 品質チェック\n- [ ] TypeScript型チェック通過\n- [ ] ESLintエラーなし\n- [ ] ユニットテスト通過\n- [ ] 手動動作確認\n\n---\n*このPRはClaude Code Actionsにより自動生成されました*`
                     });
-                    
                     console.log(`✅ PR作成完了: #${pr.data.number} for Issue #${issueNumber}`);
                     branchesProcessed++;
-                    
-                    // Issue通知
                     await github.rest.issues.createComment({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
                       issue_number: issueNumber,
                       body: `## 🎉 PR自動作成完了！\n\nClaude Code Actionsによる実装が完了し、プルリクエストを自動作成しました。\n\n**PR**: #${pr.data.number}\n**ブランチ**: \`${branch.name}\`\n**URL**: ${pr.data.html_url}\n\nレビュー完了後、マージをお願いします！`
                     });
-                    
                   } catch (error) {
                     console.error(`Failed to create PR for Issue #${issueNumber}:`, error);
                   }
@@ -107,15 +99,10 @@ jobs:
               } else {
                 console.log(`PR already exists for branch: ${branch.name}`);
               }
-            } 
+            }
+            core.setOutput('branches_remaining', branchesRemaining);
 
-      - name: Trigger self if more branches exist
-        if: steps.find_branches.outputs.processed_all == 'false' # この出力は現在設定されていない
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // このステップは未完成。
-            // 本来は find_branches ステップで全ブランチ処理完了フラグを出力し、
-            // ここで未完了なら自身を再トリガーするロジックが必要。
-            // 現状では手動またはスケジュール実行で残りを処理。
-            console.log('Further PR creation might be needed if not all branches were processed.'); 
+      # 自己再トリガーの代わりにスケジュール実行に依存するため、このステップは削除またはコメントアウト
+      # - name: Trigger self if more branches exist 
+      #   if: steps.find_branches.outputs.branches_remaining == 'true'
+      #   run: echo "More branches to process. Next scheduled run or manual dispatch will handle them." 
