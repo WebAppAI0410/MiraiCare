@@ -1,0 +1,179 @@
+name: Auto Issue Management
+
+on:
+  schedule:
+    - cron: '0 */1 * * *'  # 毎時実行
+  workflow_dispatch: {}
+
+jobs:
+  manage-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check and close resolved issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 自動作成されたIssueを取得
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'auto-detected'
+            });
+
+            for (const issue of issues.data) {
+              console.log(`Checking issue #${issue.number}: ${issue.title}`);
+              
+              // Issueの作成から24時間以上経過しているかチェック
+              const createdAt = new Date(issue.created_at);
+              const now = new Date();
+              const hoursSinceCreated = (now - createdAt) / (1000 * 60 * 60);
+              
+              if (hoursSinceCreated > 24) {
+                // 24時間以上経過している場合、進捗確認コメントを追加
+                const comments = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number
+                });
+                
+                const hasProgressComment = comments.data.some(comment => 
+                  comment.body.includes('進捗確認') || 
+                  comment.body.includes('progress check')
+                );
+                
+                if (!hasProgressComment) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: |
+                      ## 🕐 進捗確認
+
+                      このIssueは24時間以上前に作成されましたが、まだ解決されていません。
+
+                      ### 現在の状況を確認してください：
+                      - [ ] 修正作業中
+                      - [ ] 追加調査が必要
+                      - [ ] 外部依存関係待ち
+                      - [ ] 優先度変更が必要
+
+                      修正が完了した場合は、このIssueをクローズしてください。
+                      追加のサポートが必要な場合は、コメントでお知らせください。
+
+                      ---
+                      *このコメントは自動Issue管理システムによって追加されました。*
+                  });
+                  
+                  console.log(`Added progress check comment to issue #${issue.number}`);
+                }
+              }
+              
+              // エラーが解決されているかチェック（簡易版）
+              // 実際の実装では、最新のワークフロー実行結果をチェックする
+              const recentRuns = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'auto-error-detection.yml',
+                status: 'completed',
+                per_page: 5
+              });
+              
+              const latestSuccessfulRun = recentRuns.data.workflow_runs.find(run => 
+                run.conclusion === 'success' && 
+                new Date(run.created_at) > createdAt
+              );
+              
+              if (latestSuccessfulRun) {
+                // 最新の成功したワークフロー実行がIssue作成後にある場合
+                // エラーが解決された可能性があるため、確認コメントを追加
+                const hasResolutionComment = comments.data.some(comment => 
+                  comment.body.includes('解決確認') || 
+                  comment.body.includes('resolution check')
+                );
+                
+                if (!hasResolutionComment) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: |
+                      ## ✅ 解決確認
+
+                      最新のワークフロー実行が成功しました。このIssueで報告されたエラーが解決された可能性があります。
+
+                      ### 確認事項：
+                      - [ ] 報告されたエラーが修正されている
+                      - [ ] テストが正常に通過している
+                      - [ ] 関連する機能が正常に動作している
+
+                      エラーが解決されている場合は、このIssueをクローズしてください。
+                      まだ問題が残っている場合は、詳細をコメントでお知らせください。
+
+                      ---
+                      *このコメントは自動Issue管理システムによって追加されました。*
+                  });
+                  
+                  // 自動解決ラベルを追加
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    labels: ['auto-resolved']
+                  });
+                  
+                  console.log(`Added resolution check comment to issue #${issue.number}`);
+                }
+              }
+            }
+
+      - name: Clean up old resolved issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 7日以上前に作成され、auto-resolvedラベルが付いているIssueを自動クローズ
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'auto-resolved'
+            });
+
+            for (const issue of issues.data) {
+              const createdAt = new Date(issue.created_at);
+              const now = new Date();
+              const daysSinceCreated = (now - createdAt) / (1000 * 60 * 60 * 24);
+              
+              if (daysSinceCreated > 7) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  state: 'closed'
+                });
+                
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: |
+                    ## 🔒 自動クローズ
+
+                    このIssueは7日以上前に解決済みとマークされ、追加のアクティビティがないため自動的にクローズされました。
+
+                    問題が再発した場合は、新しいIssueを作成してください。
+
+                    ---
+                    *このIssueは自動Issue管理システムによってクローズされました。*
+                });
+                
+                console.log(`Auto-closed issue #${issue.number} after 7 days of resolution`);
+              }
+            } 

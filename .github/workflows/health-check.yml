@@ -1,0 +1,148 @@
+name: Project Health Check
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # 毎日9時に実行
+  workflow_dispatch: {}
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      security-events: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+        continue-on-error: true
+
+      - name: Security audit
+        id: audit
+        run: |
+          npm audit --audit-level=moderate 2>&1 | tee audit-output.txt || echo "Security issues found"
+          echo "audit_issues=$(wc -l < audit-output.txt)" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Check for outdated packages
+        id: outdated
+        run: |
+          npm outdated 2>&1 | tee outdated-output.txt || echo "Outdated packages found"
+          echo "outdated_count=$(wc -l < outdated-output.txt)" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Find TODO/FIXME comments
+        id: todos
+        run: |
+          find src -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) -exec grep -Hn "TODO\|FIXME\|XXX\|HACK" {} \; > todos-output.txt || echo "No TODOs found"
+          echo "todo_count=$(wc -l < todos-output.txt)" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Create health report issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let auditOutput = '';
+            let outdatedOutput = '';
+            let todosOutput = '';
+            
+            try {
+              auditOutput = fs.readFileSync('audit-output.txt', 'utf8');
+            } catch (e) {}
+            
+            try {
+              outdatedOutput = fs.readFileSync('outdated-output.txt', 'utf8');
+            } catch (e) {}
+            
+            try {
+              todosOutput = fs.readFileSync('todos-output.txt', 'utf8');
+            } catch (e) {}
+
+            const auditIssues = (auditOutput.match(/vulnerabilities/gi) || []).length;
+            const outdatedCount = outdatedOutput.split('\n').filter(line => line.trim()).length;
+            const todoCount = todosOutput.split('\n').filter(line => line.trim()).length;
+
+            if (auditIssues === 0 && outdatedCount === 0 && todoCount === 0) {
+              console.log('No health issues detected');
+              return;
+            }
+
+            const issueBody = `@claude [haiku]
+
+            ## 🏥 プロジェクト健全性レポート
+
+            このレポートは自動健全性チェックによって生成されました。
+
+            ### 📊 概要
+            - セキュリティ脆弱性: ${auditIssues}個
+            - 古いパッケージ: ${outdatedCount}個
+            - TODO/FIXMEコメント: ${todoCount}個
+
+            ${auditOutput ? `### 🔒 セキュリティ監査
+            \`\`\`
+            ${auditOutput.slice(0, 2000)}
+            \`\`\`
+            ` : ''}
+
+            ${outdatedOutput ? `### 📦 古いパッケージ
+            \`\`\`
+            ${outdatedOutput.slice(0, 2000)}
+            \`\`\`
+            ` : ''}
+
+            ${todosOutput ? `### 📝 TODO/FIXMEコメント
+            \`\`\`
+            ${todosOutput.slice(0, 2000)}
+            \`\`\`
+            ` : ''}
+
+            ### ✅ 推奨アクション
+            - [ ] セキュリティ脆弱性を修正
+            - [ ] 古いパッケージを更新
+            - [ ] TODO/FIXMEコメントを解決
+            - [ ] 依存関係の最適化
+            - [ ] コードの品質向上
+
+            ### 📅 次回チェック
+            次回の自動健全性チェックは明日実行されます。
+            `;
+
+            // Check if similar issue already exists
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'health-check'
+            });
+
+            const today = new Date().toISOString().split('T')[0];
+            const similarIssue = existingIssues.data.find(issue => 
+              issue.title.includes('健全性レポート') && 
+              issue.title.includes(today)
+            );
+
+            if (!similarIssue) {
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[health] プロジェクト健全性レポート - ${today}`,
+                body: issueBody,
+                labels: ['health-check', 'maintenance']
+              });
+
+              console.log(`Created health report issue #${issue.data.number}`);
+            } else {
+              console.log(`Health report already exists: #${similarIssue.number}`);
+            } 
