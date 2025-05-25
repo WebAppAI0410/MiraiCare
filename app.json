@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "MiraiCare 360",
+    "slug": "miraicare-360",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2E7D32"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.miraicare.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2E7D32"
+      },
+      "package": "com.miraicare.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "MiraiCare 360",
+      "shortName": "MiraiCare"
+    },
+    "platforms": ["ios", "android", "web"],
+    "scheme": "miraicare"
+  }
+}

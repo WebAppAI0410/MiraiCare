@@ -1,0 +1,43 @@
+{
+  "name": "miraicare-360-mvp",
+  "version": "1.0.0",
+  "description": "MiraiCare 360 MVP v2 - 高齢者向けヘルスケア SaaS",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "test": "jest",
+    "lint": "eslint . --ext .ts,.tsx"
+  },
+  "dependencies": {
+    "@react-navigation/bottom-tabs": "^7.3.13",
+    "@react-navigation/native": "^7.1.9",
+    "@react-navigation/native-stack": "^7.3.13",
+    "@react-navigation/stack": "^7.3.2",
+    "expo": "~53.0.9",
+    "expo-av": "^15.1.4",
+    "expo-camera": "^16.1.6",
+    "expo-constants": "^17.1.6",
+    "expo-font": "^13.3.1",
+    "expo-linear-gradient": "^14.1.4",
+    "expo-notifications": "^0.31.2",
+    "expo-secure-store": "^14.2.3",
+    "expo-sensors": "^14.1.4",
+    "expo-splash-screen": "^0.30.8",
+    "expo-status-bar": "~2.2.3",
+    "firebase": "^11.8.1",
+    "i18n-js": "^4.5.1",
+    "react": "19.0.0",
+    "react-i18next": "^15.5.2",
+    "react-native": "0.79.2",
+    "react-native-svg": "^15.12.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@types/react": "~19.0.10",
+    "typescript": "~5.8.3"
+  },
+  "private": true
+}

@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "89007426308",
+    "project_id": "miraicare-360-mvp",
+    "storage_bucket": "miraicare-360-mvp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:89007426308:android:d31c62341ed28036ac9e51",
+        "android_client_info": {
+          "package_name": "com.miraicare.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "89007426308-lmjgfrjsp0eapfred2gg0isnk75emabd.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBVUTDDMuEAADGmYpWKA6YvRotLavkaIQM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "89007426308-lmjgfrjsp0eapfred2gg0isnk75emabd.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "89007426308-fj3vbbki70t0f3rr0kbg2bjktvglmtmu.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.miraicare.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+} 
