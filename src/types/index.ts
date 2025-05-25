@@ -74,6 +74,7 @@ export type RootStackParamList = {
   Reminders: undefined;
   Badges: undefined;
   Settings: undefined;
+  FamilySettings: undefined;
   MoodMirror: undefined;
   Reminiscence: undefined;
   CBTCoach: undefined;
@@ -194,4 +195,67 @@ export interface GuestExperienceData {
   waterIntake: number;
   medicationTaken: boolean;
   showPromptLogin: boolean;
+}
+
+// LINE Notify関連の型定義
+export interface LineNotifyConfig {
+  token: string;
+  enabled: boolean;
+  weeklyReportDay: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+  emergencyAlerts: boolean;
+  riskThresholds: {
+    high: boolean;
+    medium: boolean;
+    low: boolean;
+  };
+}
+
+export interface FamilyMember {
+  id: string;
+  name: string;
+  relationship: string;
+  email?: string;
+  phone?: string;
+  lineNotifyToken?: string;
+  notificationSettings: LineNotifyConfig;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeeklyReport {
+  id: string;
+  userId: string;
+  weekStartDate: string;
+  weekEndDate: string;
+  data: {
+    averageSteps: number;
+    totalActiveHours: number;
+    moodTrend: 'improving' | 'stable' | 'declining';
+    riskScores: RiskScore;
+    achievements: Badge[];
+    concerns: string[];
+    recommendations: string[];
+  };
+  sentAt?: string;
+  createdAt: string;
+}
+
+export interface NotificationTemplate {
+  id: string;
+  type: 'weekly_report' | 'emergency_alert' | 'risk_alert';
+  title: string;
+  message: string;
+  variables: string[];
+}
+
+export interface EmergencyAlert {
+  id: string;
+  userId: string;
+  type: 'high_risk' | 'low_mood' | 'no_activity' | 'vital_abnormal';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  message: string;
+  data: any;
+  sentAt?: string;
+  acknowledgedAt?: string;
+  createdAt: string;
 } 

@@ -114,6 +114,140 @@ export type Database = {
           created_at?: string;
         };
       };
+      family_members: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          relationship: string;
+          email?: string;
+          phone?: string;
+          line_notify_token?: string;
+          notification_settings: any;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          relationship: string;
+          email?: string;
+          phone?: string;
+          line_notify_token?: string;
+          notification_settings?: any;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          relationship?: string;
+          email?: string;
+          phone?: string;
+          line_notify_token?: string;
+          notification_settings?: any;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      weekly_reports: {
+        Row: {
+          id: string;
+          user_id: string;
+          week_start_date: string;
+          week_end_date: string;
+          data: any;
+          sent_at?: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          week_start_date: string;
+          week_end_date: string;
+          data: any;
+          sent_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          week_start_date?: string;
+          week_end_date?: string;
+          data?: any;
+          sent_at?: string;
+          created_at?: string;
+        };
+      };
+      emergency_alerts: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: string;
+          severity: string;
+          message: string;
+          data: any;
+          sent_at?: string;
+          acknowledged_at?: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: string;
+          severity: string;
+          message: string;
+          data?: any;
+          sent_at?: string;
+          acknowledged_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          type?: string;
+          severity?: string;
+          message?: string;
+          data?: any;
+          sent_at?: string;
+          acknowledged_at?: string;
+          created_at?: string;
+        };
+      };
+      risk_scores: {
+        Row: {
+          id: string;
+          user_id: string;
+          overall: string;
+          fall_risk: string;
+          frailty_risk: string;
+          mental_health_risk: string;
+          last_updated: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          overall: string;
+          fall_risk: string;
+          frailty_risk: string;
+          mental_health_risk: string;
+          last_updated?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          overall?: string;
+          fall_risk?: string;
+          frailty_risk?: string;
+          mental_health_risk?: string;
+          last_updated?: string;
+          created_at?: string;
+        };
+      };
     };
   };
 }; 
