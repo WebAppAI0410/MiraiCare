@@ -1,7 +1,6 @@
 import js from '@eslint/js';
 import ts from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
-import reactNative from 'eslint-plugin-react-native';
 import react from 'eslint-plugin-react';
 
 export default [
@@ -25,7 +24,6 @@ export default [
     plugins: {
       '@typescript-eslint': ts,
       'react': react,
-      'react-native': reactNative,
     },
     rules: {
       ...ts.configs.recommended.rules,
@@ -34,10 +32,6 @@ export default [
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-empty-function': 'off',
-      'react-native/no-unused-styles': 'error',
-      'react-native/split-platform-components': 'error',
-      'react-native/no-inline-styles': 'warn',
-      'react-native/no-color-literals': 'warn',
       'react/jsx-uses-react': 'off',
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
