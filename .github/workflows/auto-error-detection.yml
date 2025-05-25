@@ -92,7 +92,7 @@ jobs:
                 claudeModel = '[sonnet]';
               }
               
-              const issueBody = `@claude ${claudeModel}\\n\\n## 🚨 mainブランチでエラーが検出されました\\n\\n**重要**: これはmainブランチの品質問題です。優先的に修正してください。\\n\\n### 📊 エラー概要\\n- **エラー数**: ${errorCount}個\\n- **コミット**: ${context.sha}\\n- **発生日時**: ${new Date().toISOString()}\\n\\n### 🔍 詳細なエラー情報\\n\`\`\`\\n${errorSummary.slice(0, 2000)}\\n\`\`\`\\n\\n### ✅ 修正要求\\n- [ ] TypeScriptコンパイルエラーを修正\\n- [ ] ESLintエラーを修正\\n- [ ] テストエラーを修正\\n- [ ] 不足している依存関係を追加\\n\\n### 🎯 修正方針\\n1. **緊急度**: 高（mainブランチの品質問題）\\n2. **対象**: mainブランチで直接修正\\n3. **テスト**: 修正後に全テストを実行\\n4. **確認**: CI通過を確認\\n\\n---\\n*mainブランチ品質監視システムによって自動生成*`;
+              const issueBody = `## 🚨 mainブランチでエラーが検出されました\\n\\n**重要**: これはmainブランチの品質問題です。優先的に修正してください。\\n\\n### 📊 エラー概要\\n- **エラー数**: ${errorCount}個\\n- **コミット**: ${context.sha}\\n- **発生日時**: ${new Date().toISOString()}\\n\\n### 🔍 詳細なエラー情報\\n\`\`\`\\n${errorSummary.slice(0, 2000)}\\n\`\`\`\\n\\n### ✅ 修正要求\\n- [ ] TypeScriptコンパイルエラーを修正\\n- [ ] ESLintエラーを修正\\n- [ ] テストエラーを修正\\n- [ ] 不足している依存関係を追加\\n\\n### 🎯 修正方針\\n1. **緊急度**: 高（mainブランチの品質問題）\\n2. **対象**: mainブランチで直接修正\\n3. **テスト**: 修正後に全テストを実行\\n4. **確認**: CI通過を確認\\n\\n---\\n*mainブランチ品質監視システムによって自動生成*\\n\\n@claude ${claudeModel} 上記のエラーを修正してください。`;
 
               const issue = await github.rest.issues.create({
                 owner: context.repo.owner,

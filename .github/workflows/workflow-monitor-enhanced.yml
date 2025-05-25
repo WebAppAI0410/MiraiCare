@@ -1,0 +1,269 @@
+name: Enhanced Workflow Monitor
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 6時間ごと
+  workflow_dispatch:
+    inputs:
+      force_full_check:
+        description: '完全診断を強制実行'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  enhanced-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprehensive Workflow Analysis
+        id: analysis
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // 1. 期待される動作パターンの定義
+            const expectedBehaviors = {
+              'claude_code_actions': {
+                trigger: '@claude メンション',
+                expected_within: '5分以内',
+                check_condition: 'Issue/PR本文またはコメントに@claudeがある場合'
+              },
+              'pr_auto_creation': {
+                trigger: 'claude/issue-* ブランチ作成',
+                expected_within: '10分以内', 
+                check_condition: 'claude/issue-*ブランチが存在するがPRが未作成'
+              },
+              'auto_error_detection': {
+                trigger: 'mainブランチpush',
+                expected_within: '15分以内',
+                check_condition: 'mainブランチにエラーがあるがIssue未作成'
+              }
+            };
+
+            // 2. 現在の状況を分析
+            const now = new Date();
+            const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+            
+            let analysisReport = {
+              missing_behaviors: [],
+              delayed_behaviors: [],
+              unexpected_behaviors: [],
+              health_score: 100
+            };
+
+            // 3. @claudeメンションがあるIssue/PRでClaude Code Actionsが実行されていないケースを検出
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              since: sixHoursAgo.toISOString()
+            });
+
+            for (const issue of issues.data) {
+              const hasClaudeMention = issue.body && issue.body.includes('@claude');
+              
+              if (hasClaudeMention) {
+                // Claude Code Actionsの実行履歴を確認
+                const runs = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: 'claude.yml',
+                  created: `>=${issue.created_at}`
+                });
+                
+                const relatedRun = runs.data.workflow_runs.find(run => 
+                  run.event === 'issues' && 
+                  Math.abs(new Date(run.created_at) - new Date(issue.created_at)) < 10 * 60 * 1000
+                );
+                
+                if (!relatedRun) {
+                  analysisReport.missing_behaviors.push({
+                    type: 'claude_code_actions_missing',
+                    issue_number: issue.number,
+                    issue_title: issue.title,
+                    created_at: issue.created_at,
+                    description: `Issue #${issue.number}に@claudeメンションがあるがClaude Code Actionsが実行されていない`
+                  });
+                  analysisReport.health_score -= 15;
+                }
+              }
+            }
+
+            // 4. claude/issue-*ブランチでPR未作成のケースを検出
+            const branches = await github.rest.repos.listBranches({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            const claudeBranches = branches.data.filter(branch => 
+              branch.name.startsWith('claude/issue-')
+            );
+
+            for (const branch of claudeBranches) {
+              const prs = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head: `${context.repo.owner}:${branch.name}`,
+                state: 'all'
+              });
+
+              if (prs.data.length === 0) {
+                // ブランチ作成から10分以上経過している場合
+                const branchAge = now - new Date(branch.commit.commit.author.date);
+                if (branchAge > 10 * 60 * 1000) {
+                  analysisReport.missing_behaviors.push({
+                    type: 'pr_auto_creation_missing',
+                    branch_name: branch.name,
+                    created_at: branch.commit.commit.author.date,
+                    description: `ブランチ ${branch.name} が作成されているがPRが自動作成されていない`
+                  });
+                  analysisReport.health_score -= 10;
+                }
+              }
+            }
+
+            // 5. ワークフロー実行の異常パターンを検出
+            const workflowRuns = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              created: `>=${sixHoursAgo.toISOString()}`
+            });
+
+            // 同一ワークフローの異常な実行頻度を検出
+            const workflowCounts = {};
+            for (const run of workflowRuns.data.workflow_runs) {
+              const workflowName = run.name;
+              workflowCounts[workflowName] = (workflowCounts[workflowName] || 0) + 1;
+            }
+
+            for (const [workflowName, count] of Object.entries(workflowCounts)) {
+              if (count > 20) { // 6時間で20回以上は異常
+                analysisReport.unexpected_behaviors.push({
+                  type: 'excessive_workflow_runs',
+                  workflow_name: workflowName,
+                  run_count: count,
+                  description: `${workflowName}が6時間で${count}回実行されている（異常な頻度）`
+                });
+                analysisReport.health_score -= 20;
+              }
+            }
+
+            // 6. 結果をファイルに保存
+            fs.writeFileSync('workflow-analysis.json', JSON.stringify(analysisReport, null, 2));
+            
+            // 7. 出力設定
+            core.setOutput('health_score', analysisReport.health_score);
+            core.setOutput('has_issues', analysisReport.health_score < 80);
+            core.setOutput('missing_count', analysisReport.missing_behaviors.length);
+            core.setOutput('delayed_count', analysisReport.delayed_behaviors.length);
+            
+            console.log('Enhanced workflow analysis completed');
+            console.log(`Health Score: ${analysisReport.health_score}`);
+            console.log(`Missing Behaviors: ${analysisReport.missing_behaviors.length}`);
+            console.log(`Delayed Behaviors: ${analysisReport.delayed_behaviors.length}`);
+            console.log(`Unexpected Behaviors: ${analysisReport.unexpected_behaviors.length}`);
+
+      - name: Create Enhanced Monitoring Issue
+        if: steps.analysis.outputs.has_issues == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const analysisReport = JSON.parse(fs.readFileSync('workflow-analysis.json', 'utf8'));
+            
+            // 既存の監視Issueをチェック
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'workflow-monitor,enhanced'
+            });
+
+            let issueBody = [
+              '## 🔍 拡張ワークフロー監視レポート',
+              '',
+              `**健全性スコア**: ${analysisReport.health_score}/100`,
+              `**検出日時**: ${new Date().toISOString()}`,
+              ''
+            ];
+
+            if (analysisReport.missing_behaviors.length > 0) {
+              issueBody.push('### ❌ 期待される動作が実行されていない問題');
+              for (const behavior of analysisReport.missing_behaviors) {
+                issueBody.push(`- **${behavior.type}**: ${behavior.description}`);
+                if (behavior.issue_number) {
+                  issueBody.push(`  - 対象Issue: #${behavior.issue_number}`);
+                }
+                if (behavior.branch_name) {
+                  issueBody.push(`  - 対象ブランチ: ${behavior.branch_name}`);
+                }
+                issueBody.push(`  - 発生時刻: ${behavior.created_at}`);
+                issueBody.push('');
+              }
+            }
+
+            if (analysisReport.delayed_behaviors.length > 0) {
+              issueBody.push('### ⏰ 遅延している動作');
+              for (const behavior of analysisReport.delayed_behaviors) {
+                issueBody.push(`- **${behavior.type}**: ${behavior.description}`);
+              }
+              issueBody.push('');
+            }
+
+            if (analysisReport.unexpected_behaviors.length > 0) {
+              issueBody.push('### 🚨 異常な動作パターン');
+              for (const behavior of analysisReport.unexpected_behaviors) {
+                issueBody.push(`- **${behavior.type}**: ${behavior.description}`);
+              }
+              issueBody.push('');
+            }
+
+            issueBody.push('### 🔧 推奨対応');
+            issueBody.push('- [ ] ワークフロー条件の確認');
+            issueBody.push('- [ ] 権限設定の確認');
+            issueBody.push('- [ ] トリガー条件の見直し');
+            issueBody.push('- [ ] GitHub Actions制限の確認');
+            issueBody.push('');
+            issueBody.push('---');
+            issueBody.push('*拡張ワークフロー監視システムによって自動生成*');
+            issueBody.push('');
+            issueBody.push('@claude [sonnet] 上記の問題を分析し、修正してください。');
+
+            if (existingIssues.data.length > 0) {
+              // 既存Issueを更新
+              const issue = existingIssues.data[0];
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: issueBody.join('\n')
+              });
+              console.log(`既存監視Issue #${issue.number} を更新しました`);
+            } else {
+              // 新しいIssueを作成
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🔍 [ENHANCED] ワークフロー動作異常検出 - ${new Date().toISOString().split('T')[0]}`,
+                body: issueBody.join('\n'),
+                labels: ['workflow-monitor', 'enhanced', 'bug', 'urgent']
+              });
+              
+              console.log(`拡張監視Issue #${issue.data.number} を作成しました`);
+            }
+
+      - name: Success Report
+        if: steps.analysis.outputs.has_issues == 'false'
+        run: |
+          echo "✅ 拡張ワークフロー監視: 全ての期待される動作が正常に実行されています"
+          echo "健全性スコア: ${{ steps.analysis.outputs.health_score }}/100" 
