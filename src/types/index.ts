@@ -99,6 +99,7 @@ export const Colors = {
   background: '#F5F5F5',    // オフホワイト（目に優しい）
   surface: '#FFFFFF',       // 純白
   border: '#E0E0E0',        // ライトグレー
+  disabled: '#BDBDBD',      // 無効状態のグレー
   success: '#4CAF50',
   warning: '#FF9800',
   warningLight: '#FFF3E0',  // 薄いオレンジ（警告背景）
