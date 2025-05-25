@@ -1,0 +1,171 @@
+name: Auto Error Detection & Issue Creation
+
+on:
+  workflow_run:
+    workflows: ["RN Unit CI"]
+    types: [completed]
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  detect-errors:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' || always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies (if possible)
+        run: npm ci || npm install || echo "Dependencies installation failed"
+        continue-on-error: true
+
+      - name: Run linter and collect errors
+        id: lint-check
+        run: |
+          npm run lint 2>&1 | tee lint-output.txt || echo "Lint failed"
+          echo "lint_failed=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Run tests and collect errors
+        id: test-check
+        run: |
+          npm test 2>&1 | tee test-output.txt || echo "Tests failed"
+          echo "test_failed=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Check TypeScript compilation
+        id: tsc-check
+        run: |
+          npx tsc --noEmit 2>&1 | tee tsc-output.txt || echo "TypeScript compilation failed"
+          echo "tsc_failed=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Analyze errors and create issue
+        if: steps.lint-check.outputs.lint_failed != '0' || steps.test-check.outputs.test_failed != '0' || steps.tsc-check.outputs.tsc_failed != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Read error outputs
+            let lintErrors = '';
+            let testErrors = '';
+            let tscErrors = '';
+            
+            try {
+              lintErrors = fs.readFileSync('lint-output.txt', 'utf8');
+            } catch (e) {}
+            
+            try {
+              testErrors = fs.readFileSync('test-output.txt', 'utf8');
+            } catch (e) {}
+            
+            try {
+              tscErrors = fs.readFileSync('tsc-output.txt', 'utf8');
+            } catch (e) {}
+
+            // Determine Claude model based on error complexity
+            let claudeModel = '[haiku]';
+            const errorCount = (lintErrors.match(/error/gi) || []).length + 
+                              (testErrors.match(/error/gi) || []).length + 
+                              (tscErrors.match(/error/gi) || []).length;
+            
+            if (errorCount > 10) {
+              claudeModel = '[opus]';
+            } else if (errorCount > 3) {
+              claudeModel = '[sonnet]';
+            }
+
+            // Create comprehensive issue body
+            const issueBody = `@claude ${claudeModel}
+
+            ## 🤖 自動検知されたエラー
+
+            このIssueは自動エラー検知システムによって作成されました。
+
+            ### 📊 エラー概要
+            - Lint エラー: ${(lintErrors.match(/error/gi) || []).length}個
+            - Test エラー: ${(testErrors.match(/error/gi) || []).length}個  
+            - TypeScript エラー: ${(tscErrors.match(/error/gi) || []).length}個
+
+            ### 🔍 詳細なエラー情報
+
+            ${lintErrors ? `#### ESLint エラー
+            \`\`\`
+            ${lintErrors.slice(0, 2000)}
+            \`\`\`
+            ` : ''}
+
+            ${testErrors ? `#### テストエラー
+            \`\`\`
+            ${testErrors.slice(0, 2000)}
+            \`\`\`
+            ` : ''}
+
+            ${tscErrors ? `#### TypeScript エラー
+            \`\`\`
+            ${tscErrors.slice(0, 2000)}
+            \`\`\`
+            ` : ''}
+
+            ### ✅ 修正要求
+            - [ ] すべてのlintエラーを修正
+            - [ ] すべてのテストエラーを修正
+            - [ ] TypeScriptコンパイルエラーを修正
+            - [ ] 不足している依存関係を追加
+            - [ ] 設定ファイルを適切に構成
+
+            ### 🔖 制約
+            - TypeScript strict modeを維持
+            - React Native best practicesに従う
+            - 既存の機能を破壊しない
+            - 適切なテストを追加
+            - アクセシビリティ要件を満たす
+
+            ### 📝 コンテキスト
+            - ブランチ: ${context.ref}
+            - コミット: ${context.sha}
+            - ワークフロー: ${context.workflow}
+            - 実行者: ${context.actor}
+            `;
+
+            // Check if similar issue already exists
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'auto-detected,bug'
+            });
+
+            const similarIssue = existingIssues.data.find(issue => 
+              issue.title.includes('自動検知されたエラー') && 
+              issue.body.includes(context.sha.slice(0, 7))
+            );
+
+            if (!similarIssue) {
+              // Create new issue
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[auto] 自動検知されたエラー - ${new Date().toISOString().split('T')[0]}`,
+                body: issueBody,
+                labels: ['auto-detected', 'bug', 'needs-fix']
+              });
+
+              console.log(`Created issue #${issue.data.number}`);
+            } else {
+              console.log(`Similar issue already exists: #${similarIssue.number}`);
+            } 

@@ -1,0 +1,62 @@
+name: Setup Repository Labels
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ['.github/workflows/setup-labels.yml']
+
+jobs:
+  setup-labels:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Create/Update Labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [
+              { name: 'auto-detected', color: 'ff6b6b', description: '自動検知されたエラー' },
+              { name: 'auto-resolved', color: '51cf66', description: '自動解決されたIssue' },
+              { name: 'health-check', color: '74c0fc', description: 'プロジェクト健全性チェック' },
+              { name: 'needs-fix', color: 'ffd43b', description: '修正が必要' },
+              { name: 'high', color: 'e03131', description: '高優先度' },
+              { name: 'medium', color: 'fd7e14', description: '中優先度' },
+              { name: 'low', color: '51cf66', description: '低優先度' },
+              { name: 'maintenance', color: '868e96', description: 'メンテナンス作業' },
+              { name: 'security', color: 'c92a2a', description: 'セキュリティ関連' },
+              { name: 'dependencies', color: '339af0', description: '依存関係の更新' },
+              { name: 'performance', color: '9775fa', description: 'パフォーマンス改善' },
+              { name: 'claude-haiku', color: 'e9ecef', description: 'Claude Haikuで処理' },
+              { name: 'claude-sonnet', color: 'adb5bd', description: 'Claude Sonnetで処理' },
+              { name: 'claude-opus', color: '495057', description: 'Claude Opusで処理' }
+            ];
+
+            for (const label of labels) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description
+                });
+                console.log(`Created label: ${label.name}`);
+              } catch (error) {
+                if (error.status === 422) {
+                  // Label already exists, update it
+                  await github.rest.issues.updateLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description
+                  });
+                  console.log(`Updated label: ${label.name}`);
+                } else {
+                  console.error(`Error with label ${label.name}:`, error.message);
+                }
+              }
+            } 
