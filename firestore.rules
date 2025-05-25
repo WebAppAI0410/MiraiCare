@@ -1,21 +1,153 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ユーザー情報（本人のみアクセス可能）
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId && validateUserData();
+      allow update: if request.auth != null && request.auth.uid == userId && validateUserUpdate();
     }
+    
+    // バイタルデータ（本人のみアクセス可能）
     match /vitals/{vitalId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId && 
+        validateVitalData();
     }
+    
+    // 気分データ（本人のみアクセス可能）
     match /moods/{moodId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId && 
+        validateMoodData();
     }
+    
+    // リマインダー（本人のみアクセス可能）
     match /reminders/{reminderId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId && 
+        validateReminderData();
     }
+    
+    // バッジ（読み取り専用、管理者のみ作成・更新可能）
     match /badges/{badgeId} {
       allow read: if request.auth != null;
-      allow write: if false;
+      allow write: if request.auth != null && isAdmin();
+    }
+    
+    // ユーザーバッジ（本人のみアクセス可能）
+    match /user_badges/{userBadgeId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // 睡眠データ（本人のみアクセス可能）
+    match /sleep_data/{sleepId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // 薬剤情報（本人のみアクセス可能）
+    match /medications/{medicationId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // 薬剤服用ログ（本人のみアクセス可能）
+    match /medication_logs/{logId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // 緊急連絡先（本人のみアクセス可能）
+    match /emergency_contacts/{contactId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // ヘルスレポート（本人のみアクセス可能）
+    match /health_reports/{reportId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // アプリ使用統計（本人のみアクセス可能）
+    match /app_usage/{usageId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // 同期状態（本人のみアクセス可能）
+    match /sync_status/{syncId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // ヘルパー関数
+    function isAdmin() {
+      return request.auth.token.admin == true;
+    }
+    
+    function validateUserData() {
+      return request.resource.data.keys().hasAll(['email', 'createdAt', 'updatedAt']) &&
+             request.resource.data.email is string &&
+             request.resource.data.email.matches('.*@.*\\..*');
+    }
+    
+    function validateUserUpdate() {
+      return request.resource.data.updatedAt is timestamp &&
+             request.resource.data.updatedAt == request.time;
+    }
+    
+    function validateVitalData() {
+      return request.resource.data.keys().hasAll(['userId', 'type', 'value', 'unit', 'measuredAt', 'createdAt']) &&
+             request.resource.data.userId is string &&
+             request.resource.data.type in ['steps', 'heart_rate', 'blood_pressure', 'weight', 'sleep'] &&
+             request.resource.data.value is number &&
+             request.resource.data.value >= 0 &&
+             request.resource.data.unit is string &&
+             request.resource.data.measuredAt is timestamp;
+    }
+    
+    function validateMoodData() {
+      return request.resource.data.keys().hasAll(['userId', 'moodLabel', 'intensity', 'recordedAt', 'createdAt']) &&
+             request.resource.data.userId is string &&
+             request.resource.data.moodLabel is string &&
+             request.resource.data.intensity is int &&
+             request.resource.data.intensity >= 1 &&
+             request.resource.data.intensity <= 5 &&
+             request.resource.data.recordedAt is timestamp;
+    }
+    
+    function validateReminderData() {
+      return request.resource.data.keys().hasAll(['userId', 'type', 'title', 'scheduledTime', 'completed', 'createdAt']) &&
+             request.resource.data.userId is string &&
+             request.resource.data.type in ['water', 'medication', 'exercise', 'mood_check', 'custom'] &&
+             request.resource.data.title is string &&
+             request.resource.data.scheduledTime is timestamp &&
+             request.resource.data.completed is bool;
     }
   }
 }
