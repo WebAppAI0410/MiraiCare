@@ -37,25 +37,37 @@ jobs:
         id: lint-check
         run: |
           npm run lint 2>&1 | tee lint-output.txt || echo "Lint failed"
-          echo "lint_failed=$?" >> $GITHUB_OUTPUT
+          if [ $? -ne 0 ]; then
+            echo "lint_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "lint_failed=false" >> $GITHUB_OUTPUT
+          fi
         continue-on-error: true
 
       - name: Run tests and collect errors
         id: test-check
         run: |
           npm test 2>&1 | tee test-output.txt || echo "Tests failed"
-          echo "test_failed=$?" >> $GITHUB_OUTPUT
+          if [ $? -ne 0 ]; then
+            echo "test_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "test_failed=false" >> $GITHUB_OUTPUT
+          fi
         continue-on-error: true
 
       - name: Check TypeScript compilation
         id: tsc-check
         run: |
           npx tsc --noEmit 2>&1 | tee tsc-output.txt || echo "TypeScript compilation failed"
-          echo "tsc_failed=$?" >> $GITHUB_OUTPUT
+          if [ $? -ne 0 ]; then
+            echo "tsc_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "tsc_failed=false" >> $GITHUB_OUTPUT
+          fi
         continue-on-error: true
 
       - name: Analyze errors and create issue
-        if: steps.lint-check.outputs.lint_failed != '0' || steps.test-check.outputs.test_failed != '0' || steps.tsc-check.outputs.tsc_failed != '0'
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
@@ -84,10 +96,18 @@ jobs:
                               (testErrors.match(/error/gi) || []).length + 
                               (tscErrors.match(/error/gi) || []).length;
             
+            console.log(`Total errors detected: ${errorCount}`);
+            
             if (errorCount > 10) {
               claudeModel = '[opus]';
             } else if (errorCount > 3) {
               claudeModel = '[sonnet]';
+            }
+            
+            // Only create issue if there are actual errors
+            if (errorCount === 0) {
+              console.log('No errors detected, skipping issue creation');
+              return;
             }
 
             // Create comprehensive issue body
