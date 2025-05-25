@@ -34,12 +34,20 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const maxBranches = parseInt(process.env.INPUT_MAX_BRANCHES_TO_PROCESS || '${{ github.event.inputs.max_branches_to_process || 5 }}');
+            console.log('--- Starting PR Creation Script ---');
+            console.log(`Triggered by: ${context.eventName}`);
+
+            let maxBranches;
+            if (context.eventName === 'workflow_dispatch') {
+              maxBranches = parseInt(context.payload.inputs.max_branches_to_process || '5');
+            } else {
+              // workflow_run や schedule の場合はデフォルト値を使用
+              maxBranches = 5; 
+            }
+            console.log(`Max branches to process in this run: ${maxBranches}`);
+            
             let branchesProcessed = 0;
             let branchesRemaining = false;
-
-            console.log('--- Starting PR Creation Script ---');
-            console.log(`Max branches to process in this run: ${maxBranches}`);
 
             let allBranches;
             try {
