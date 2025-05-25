@@ -1,0 +1,47 @@
+name: Auto-generate PR Documentation
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  generate-documentation:
+    # Only run when PR is merged and not created by bots
+    # This prevents infinite loops and saves compute resources
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.user.type != 'Bot' &&
+      !startsWith(github.event.pull_request.title, 'docs: Add documentation for PR')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - uses: textcortex/claude-code-pr-autodoc-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          min_lines_changed: "20"
+          min_files_changed: "1"
+          documentation_directory: "docs/prs"
+          commit_tags: "[skip ci] [auto-doc]"
+          pr_title_tags: "[Documentation]"
+          timeout_minutes: "10"
+          custom_instructions: |
+            MiraiCare（高齢者向けヘルスケアSaaS）プロジェクトのPRドキュメントを生成してください。
+            
+            ## 重要な観点
+            - React Native + TypeScript + Supabaseの技術スタック
+            - 高齢者向けアプリのアクセシビリティ
+            - セキュリティとプライバシー
+            - パフォーマンスへの影響
+            - 既存機能への影響
+            
+            ## ドキュメント形式
+            - 日本語で記述
+            - 技術的詳細と業務的影響の両方を記載
+            - 今後の開発への示唆を含める
+            - テスト結果と品質チェック結果を記載 
