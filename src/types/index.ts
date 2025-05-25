@@ -194,4 +194,49 @@ export interface GuestExperienceData {
   waterIntake: number;
   medicationTaken: boolean;
   showPromptLogin: boolean;
+}
+
+// ヘルスデータ関連の追加型定義
+export interface HealthDataPoint {
+  value: number;
+  date: string;
+  source: 'google_fit' | 'health_kit' | 'manual';
+}
+
+export interface WeeklyHealthData {
+  steps: HealthDataPoint[];
+  averageSteps: number;
+  lastUpdated: string;
+}
+
+export interface HealthPermissions {
+  steps: boolean;
+  granted: boolean;
+}
+
+// リスク計算関連
+export interface RiskWeights {
+  stepVariability: number;
+  averageSteps: number;
+  trendDirection: number;
+  consistency: number;
+}
+
+export interface AgeBasedStandards {
+  targetSteps: number;
+  minimumSteps: number;
+  riskThresholds: {
+    low: number;
+    medium: number;
+    high: number;
+  };
+}
+
+// ヘルスケア設定
+export interface HealthSettings {
+  enableAutoSync: boolean;
+  syncFrequency: 'hourly' | 'daily' | 'manual';
+  enableNotifications: boolean;
+  privacyMode: boolean;
+  dataRetentionDays: number;
 } 

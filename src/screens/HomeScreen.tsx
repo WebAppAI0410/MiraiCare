@@ -7,56 +7,19 @@ import {
   SafeAreaView,
   ScrollView,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Colors, FontSizes, TouchTargets, Spacing, RiskLevel, RootStackParamList } from '../types';
 import i18n from '../config/i18n';
+import { useHealthData } from '../hooks/useHealthData';
+import { RiskCard } from '../components/RiskCard';
 
 const { width } = Dimensions.get('window');
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
-
-interface RiskCardProps {
-  level: RiskLevel;
-  onPress: () => void;
-}
-
-const RiskCard: React.FC<RiskCardProps> = ({ level, onPress }) => {
-  const getRiskColor = (riskLevel: RiskLevel) => {
-    switch (riskLevel) {
-      case 'low':
-        return Colors.success;
-      case 'medium':
-        return Colors.warning;
-      case 'high':
-        return Colors.error;
-      default:
-        return Colors.textSecondary;
-    }
-  };
-
-  const getRiskLabel = (riskLevel: RiskLevel) => {
-    return i18n.t(`home.riskLevels.${riskLevel}`);
-  };
-
-  return (
-    <TouchableOpacity
-      style={[styles.riskCard, { borderColor: getRiskColor(level) }]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${i18n.t('home.todayRisk')} ${getRiskLabel(level)}`}
-      accessibilityHint="タップして詳細を確認"
-    >
-      <Text style={styles.riskTitle}>{i18n.t('home.todayRisk')}</Text>
-      <Text style={[styles.riskLevel, { color: getRiskColor(level) }]}>
-        {getRiskLabel(level)}
-      </Text>
-      <View style={[styles.riskIndicator, { backgroundColor: getRiskColor(level) }]} />
-    </TouchableOpacity>
-  );
-};
 
 interface MoodChipProps {
   mood: string;
@@ -153,10 +116,23 @@ const ActionButton: React.FC<ActionButtonProps> = ({ title, icon, onPress, disab
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   
-  // ダミーデータ（後でAPIから取得）
-  const [riskLevel, setRiskLevel] = useState<RiskLevel>('medium');
+  // ヘルスデータフック
+  const {
+    healthData,
+    riskScore,
+    permissions,
+    isLoading,
+    isInitializing,
+    error,
+    refreshData,
+    recordManualSteps,
+    clearError,
+    improvementSuggestions,
+    riskDescription,
+  } = useHealthData();
+  
+  // ローカル状態
   const [currentMood, setCurrentMood] = useState('good');
-  const [stepsData, setStepsData] = useState({ current: 3250, target: 4000 });
   const [waterData, setWaterData] = useState({ current: 400, target: 1200 });
   const [badgeCount, setBadgeCount] = useState(2);
 
@@ -165,8 +141,22 @@ const HomeScreen: React.FC = () => {
     loadDashboardData();
   }, []);
 
+  useEffect(() => {
+    // エラーハンドリング
+    if (error) {
+      Alert.alert(
+        'ヘルスデータエラー',
+        error,
+        [
+          { text: 'リトライ', onPress: refreshData },
+          { text: '閉じる', onPress: clearError, style: 'cancel' },
+        ]
+      );
+    }
+  }, [error, refreshData, clearError]);
+
   const loadDashboardData = async () => {
-    // TODO: Supabaseからデータを取得
+    // TODO: Supabaseから追加データを取得
     console.log('Loading dashboard data...');
   };
 
@@ -194,6 +184,31 @@ const HomeScreen: React.FC = () => {
     navigation.navigate('Badges');
   };
 
+  const handleManualStepsInput = () => {
+    Alert.prompt(
+      '歩数の手動入力',
+      '今日の歩数を入力してください',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '記録',
+          onPress: async (steps) => {
+            const stepsNumber = parseInt(steps || '0', 10);
+            if (stepsNumber > 0) {
+              const success = await recordManualSteps(stepsNumber);
+              if (success) {
+                Alert.alert('記録完了', `${stepsNumber}歩を記録しました`);
+              }
+            }
+          },
+        },
+      ],
+      'plain-text',
+      undefined,
+      'number-pad'
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" backgroundColor={Colors.background} />
@@ -215,7 +230,19 @@ const HomeScreen: React.FC = () => {
 
         {/* リスクカードとムード */}
         <View style={styles.statusSection}>
-          <RiskCard level={riskLevel} onPress={handleRiskCardPress} />
+          {riskScore ? (
+            <RiskCard 
+              riskScore={riskScore} 
+              onPress={handleRiskCardPress}
+              showDetailedView={false}
+            />
+          ) : (
+            <View style={styles.loadingCard}>
+              <Text style={styles.loadingText}>
+                {isInitializing ? 'ヘルスデータを初期化中...' : 'リスクスコアを計算中...'}
+              </Text>
+            </View>
+          )}
           <MoodChip mood={currentMood} onPress={handleMoodPress} />
         </View>
 
@@ -223,10 +250,21 @@ const HomeScreen: React.FC = () => {
         <View style={styles.progressSection}>
           <ProgressBar
             label={i18n.t('home.steps')}
-            current={stepsData.current}
-            target={stepsData.target}
+            current={healthData?.averageSteps || 0}
+            target={4000}
             unit="歩"
           />
+          {healthData && (
+            <TouchableOpacity 
+              style={styles.stepsDetailButton}
+              onPress={handleManualStepsInput}
+              accessibilityLabel="歩数を手動で入力"
+            >
+              <Text style={styles.stepsDetailText}>
+                7日平均: {healthData.averageSteps}歩 | 手動入力
+              </Text>
+            </TouchableOpacity>
+          )}
           <ProgressBar
             label={i18n.t('home.water')}
             current={waterData.current}
@@ -234,6 +272,18 @@ const HomeScreen: React.FC = () => {
             unit="ml"
           />
         </View>
+
+        {/* 改善提案セクション */}
+        {improvementSuggestions.length > 0 && (
+          <View style={styles.suggestionsSection}>
+            <Text style={styles.suggestionsTitle}>💡 今日の健康アドバイス</Text>
+            {improvementSuggestions.slice(0, 2).map((suggestion, index) => (
+              <Text key={index} style={styles.suggestionText}>
+                • {suggestion}
+              </Text>
+            ))}
+          </View>
+        )}
 
         {/* アクションボタン */}
         <View style={styles.actionSection}>
@@ -291,33 +341,6 @@ const styles = StyleSheet.create({
   },
   statusSection: {
     marginBottom: Spacing.sectionGap,
-  },
-  riskCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: Spacing.cardPadding,
-    marginBottom: Spacing.md,
-    borderWidth: 3,
-    minHeight: TouchTargets.comfortable,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-  },
-  riskTitle: {
-    fontSize: FontSizes.medium,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
-  },
-  riskLevel: {
-    fontSize: FontSizes.status,
-    fontWeight: 'bold',
-  },
-  riskIndicator: {
-    height: 8,
-    borderRadius: 4,
-    marginTop: Spacing.sm,
   },
   moodChip: {
     backgroundColor: Colors.surface,
@@ -449,6 +472,62 @@ const styles = StyleSheet.create({
   badgeCount: {
     fontSize: FontSizes.h1,
     color: Colors.accent,
+  },
+  
+  // 新しいスタイル
+  loadingCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.cardPadding,
+    marginBottom: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  loadingText: {
+    fontSize: FontSizes.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  stepsDetailButton: {
+    backgroundColor: Colors.primaryLight,
+    borderRadius: 8,
+    padding: Spacing.sm,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  stepsDetailText: {
+    fontSize: FontSizes.small,
+    color: Colors.primary,
+    textAlign: 'center',
+  },
+  suggestionsSection: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.cardPadding,
+    marginBottom: Spacing.sectionGap,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  suggestionsTitle: {
+    fontSize: FontSizes.medium,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.md,
+  },
+  suggestionText: {
+    fontSize: FontSizes.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+    lineHeight: FontSizes.medium * 1.4,
   },
 });
 
