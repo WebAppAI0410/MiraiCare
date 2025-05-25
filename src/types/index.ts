@@ -104,6 +104,7 @@ export const Colors = {
   warningLight: '#FFF3E0',  // 薄いオレンジ（警告背景）
   error: '#F44336',
   info: '#2196F3',
+  disabled: '#BDBDBD',      // 無効状態の色
   overlay: 'rgba(0, 0, 0, 0.5)',
 };
 
