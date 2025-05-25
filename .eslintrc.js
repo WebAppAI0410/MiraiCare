@@ -1,17 +1,32 @@
 module.exports = {
-  extends: [
-    'expo',
-    '@react-native-community',
-  ],
+  extends: ['expo'],
   parser: '@typescript-eslint/parser',
   plugins: ['@typescript-eslint'],
-  rules: {
-    // Add custom rules here
-    '@typescript-eslint/no-unused-vars': 'warn',
-    'react-native/no-inline-styles': 'warn',
-  },
+  root: true,
   env: {
+    node: true,
     jest: true,
-    'react-native/react-native': true,
   },
+  rules: {
+    // TypeScript 用の設定
+    '@typescript-eslint/no-unused-vars': 'warn',
+    '@typescript-eslint/explicit-function-return-type': 'off',
+    '@typescript-eslint/explicit-module-boundary-types': 'off',
+    '@typescript-eslint/no-explicit-any': 'warn',
+    
+    // 一般的な設定
+    'no-console': 'warn',
+    'prefer-const': 'warn',
+    'no-var': 'error',
+  },
+  overrides: [
+    {
+      files: ['*.ts', '*.tsx'],
+      rules: {
+        '@typescript-eslint/no-shadow': ['error'],
+        'no-shadow': 'off',
+        'no-undef': 'off',
+      },
+    },
+  ],
 }; 
