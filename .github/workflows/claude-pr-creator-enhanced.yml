@@ -1,0 +1,169 @@
+name: Claude PR Creator Enhanced
+
+on:
+  push:
+    branches:
+      - 'claude/issue-*'
+  workflow_run:
+    workflows: ["Claude Code Actions"]
+    types: [completed]
+
+jobs:
+  create-pr:
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref_name, 'claude/issue-')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract issue number from branch
+        id: extract_issue
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            BRANCH_NAME="${{ github.ref_name }}"
+          else
+            # workflow_runの場合、最新のclaude/issue-*ブランチを取得
+            BRANCH_NAME=$(git branch -r | grep 'origin/claude/issue-' | sort -V | tail -1 | sed 's/.*origin\///')
+          fi
+          
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          
+          if [[ $BRANCH_NAME =~ claude/issue-([0-9]+) ]]; then
+            ISSUE_NUMBER="${BASH_REMATCH[1]}"
+            echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+            echo "Found issue number: $ISSUE_NUMBER"
+          else
+            echo "Could not extract issue number from branch: $BRANCH_NAME"
+            exit 1
+          fi
+
+      - name: Check if PR already exists
+        id: check_pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branchName = '${{ steps.extract_issue.outputs.branch_name }}';
+            
+            const existingPRs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branchName}`,
+              state: 'open'
+            });
+            
+            if (existingPRs.data.length > 0) {
+              console.log(`PR already exists: #${existingPRs.data[0].number}`);
+              core.setOutput('pr_exists', 'true');
+              core.setOutput('pr_number', existingPRs.data[0].number);
+            } else {
+              console.log('No existing PR found');
+              core.setOutput('pr_exists', 'false');
+            }
+
+      - name: Get issue details
+        if: steps.check_pr.outputs.pr_exists == 'false'
+        id: get_issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = '${{ steps.extract_issue.outputs.issue_number }}';
+            
+            try {
+              const issue = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber
+              });
+              
+              core.setOutput('issue_title', issue.data.title);
+              core.setOutput('issue_body', issue.data.body || '');
+              core.setOutput('issue_labels', JSON.stringify(issue.data.labels.map(label => label.name)));
+              
+              return issue.data;
+            } catch (error) {
+              console.error(`Failed to get issue #${issueNumber}:`, error);
+              core.setOutput('issue_title', `Issue #${issueNumber}`);
+              core.setOutput('issue_body', '');
+              core.setOutput('issue_labels', '[]');
+            }
+
+      - name: Get commit details
+        if: steps.check_pr.outputs.pr_exists == 'false'
+        id: get_commits
+        run: |
+          BRANCH_NAME="${{ steps.extract_issue.outputs.branch_name }}"
+          
+          # 最新のコミットメッセージを取得
+          LATEST_COMMIT_MSG=$(git log origin/$BRANCH_NAME --oneline -1 --pretty=format:"%s" || echo "Claude Code Actions による修正")
+          echo "latest_commit_msg=$LATEST_COMMIT_MSG" >> $GITHUB_OUTPUT
+          
+          # コミット数を取得
+          COMMIT_COUNT=$(git rev-list --count origin/main..origin/$BRANCH_NAME || echo "1")
+          echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          
+          # 変更ファイル数を取得
+          CHANGED_FILES=$(git diff --name-only origin/main..origin/$BRANCH_NAME | wc -l || echo "0")
+          echo "changed_files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        if: steps.check_pr.outputs.pr_exists == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = '${{ steps.extract_issue.outputs.issue_number }}';
+            const branchName = '${{ steps.extract_issue.outputs.branch_name }}';
+            const issueTitle = '${{ steps.get_issue.outputs.issue_title }}';
+            const issueBody = '${{ steps.get_issue.outputs.issue_body }}';
+            const latestCommitMsg = '${{ steps.get_commits.outputs.latest_commit_msg }}';
+            const commitCount = '${{ steps.get_commits.outputs.commit_count }}';
+            const changedFiles = '${{ steps.get_commits.outputs.changed_files }}';
+            
+            // PRタイトルを生成
+            const prTitle = `🤖 Claude実装: ${issueTitle}`;
+            
+            // PR本文を生成
+            const prBody = `## 🤖 Claude Code Actions による自動実装\n\n### 📋 関連Issue\nCloses #${issueNumber}\n\n### 🎯 実装内容\nClaude Code Actionsにより Issue #${issueNumber} の要件に基づく機能実装が完了しました。\n\n**最新コミット**: ${latestCommitMsg}\n\n### 📊 変更概要\n- **コミット数**: ${commitCount}\n- **変更ファイル数**: ${changedFiles}\n- **ブランチ**: \`${branchName}\`\n\n### ✅ 品質チェック\n- [ ] TypeScript型チェック通過\n- [ ] ESLintエラーなし\n- [ ] ユニットテスト通過\n- [ ] 手動動作確認\n\n### 🚀 テスト手順\n\`\`\`bash\ngit checkout ${branchName}\nnpm install\nnpm run lint && npx tsc --noEmit && npm test\nnpm start\n\`\`\`\n\n### 📝 元のIssue内容\n${issueBody}\n\n---\n*このPRはClaude Code Actionsにより自動生成されました*\n*Generated with [Claude Code](https://claude.ai/code)*`;
+
+            try {
+              const pr = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: prTitle,
+                head: branchName,
+                base: 'main',
+                body: prBody,
+                draft: false
+              });
+              
+              console.log(`✅ PR作成完了: #${pr.data.number}`);
+              console.log(`🔗 PR URL: ${pr.data.html_url}`);
+              
+              // Issue通知
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `## 🎉 PR自動作成完了！\n\nClaude Code Actionsによる実装が完了し、プルリクエストを自動作成しました。\n\n**PR**: #${pr.data.number}\n**ブランチ**: \`${branchName}\`\n**URL**: ${pr.data.html_url}\n\n### 📋 次のステップ\n1. 品質チェック結果確認\n2. 手動テスト実行\n3. コードレビュー\n4. マージ実行\n\nレビュー完了後、マージをお願いします！`
+              });
+              
+              return pr.data;
+            } catch (error) {
+              console.error('PR作成に失敗:', error);
+              
+              // Issue通知（エラー）
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `## ❌ PR自動作成に失敗\n\nClaude Code Actionsによる実装は完了しましたが、PR作成に失敗しました。\n\n**ブランチ**: \`${branchName}\`\n**手動PR作成**: [こちらをクリック](https://github.com/${context.repo.owner}/${context.repo.repo}/compare/main...${branchName})\n\n**エラー**: ${error.message}\n\n手動でPRを作成してください。`
+              });
+              
+              throw error;
+            } 
