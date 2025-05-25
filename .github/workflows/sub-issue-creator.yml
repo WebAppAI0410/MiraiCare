@@ -1,0 +1,125 @@
+name: Sub-Issue Creator
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'サブイシューを作成する元のIssue番号'
+        required: true
+        type: number
+
+jobs:
+  create-sub-issues:
+    if: contains(github.event.issue.labels.*.name, 'needs-breakdown') || contains(github.event.comment.body, '@claude breakdown') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create sub-issues with Claude
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          timeout_minutes: "15"
+          allowed_tools: "View,GlobTool,GrepTool"
+          direct_prompt: |
+            Issue #${{ github.event.issue.number || github.event.inputs.issue_number }}の内容を分析し、適切なサブイシューを作成してください。
+
+            ## 分析対象
+            - TypeScriptエラーの種類と数
+            - 依存関係の問題
+            - 設定ファイルの不備
+            - 不足ファイル
+
+            ## サブイシュー作成ルール
+            1. 複雑な問題は3-5個のサブタスクに分割
+            2. 各サブイシューには明確なタイトルと説明を付ける
+            3. 優先度ラベル（high-priority, medium-priority, low-priority）を設定
+            4. 関連ファイルを明記
+            5. 完了条件を明確に定義
+
+            ## 作業手順
+            1. 元のIssueの内容を確認
+            2. 問題の種類を分析
+            3. 適切なサブイシューを作成
+            4. 元のIssueにサブイシューリストを追加
+            5. 適切なラベルを設定
+
+      - name: Update parent issue progress
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 親Issueの進捗を追跡
+            const parentIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'has-sub-issues',
+              state: 'open'
+            });
+            
+            for (const parentIssue of parentIssues.data) {
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parentIssue.number
+              });
+              
+              const subIssueComment = comments.data.find(comment => 
+                comment.body.includes('サブイシューを作成しました')
+              );
+              
+              if (subIssueComment) {
+                const subIssueNumbers = subIssueComment.body.match(/#(\d+)/g)?.map(match => 
+                  parseInt(match.substring(1))
+                ) || [];
+                
+                if (subIssueNumbers.length > 0) {
+                  let completedCount = 0;
+                  
+                  for (const subIssueNumber of subIssueNumbers) {
+                    try {
+                      const subIssue = await github.rest.issues.get({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: subIssueNumber
+                      });
+                      
+                      if (subIssue.data.state === 'closed') {
+                        completedCount++;
+                      }
+                    } catch (error) {
+                      console.log(`サブイシュー #${subIssueNumber} の確認をスキップ`);
+                    }
+                  }
+                  
+                  const progress = Math.round((completedCount / subIssueNumbers.length) * 100);
+                  
+                  if (progress === 100) {
+                    await github.rest.issues.update({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: parentIssue.number,
+                      state: 'closed'
+                    });
+                    
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: parentIssue.number,
+                      body: `## ✅ 完了\n\nすべてのサブイシューが完了したため、この問題をクローズします。\n\n**進捗**: ${completedCount}/${subIssueNumbers.length} (${progress}%)\n\n---\n*サブイシュー管理システムによって自動クローズされました*`
+                    });
+                  }
+                  
+                  console.log(`親Issue #${parentIssue.number} の進捗: ${progress}% (${completedCount}/${subIssueNumbers.length})`);
+                }
+              }
+            } 

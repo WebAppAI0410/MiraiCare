@@ -25,16 +25,35 @@ jobs:
       actions: read
 
     steps:
-      - name: Claude Code Action
-        uses: anthropics/claude-code-action@v1
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Claude Code Response
+        uses: anthropics/claude-code-action@beta
         with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           trigger_phrase: "@claude"
           timeout_minutes: "30"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: 10
-          allowed_tools: |
-            - str_replace_editor
-            - bash
-            - computer
+          allowed_tools: "Bash(git status),Bash(git log),Bash(git diff),Bash(npm install),Bash(npm test),Bash(npm run lint),View,GlobTool,GrepTool,Edit"
+          custom_instructions: |
+            あなたはMiraiCare（React Native + TypeScript + Supabase）プロジェクトの専門エンジニアです。
+            
+            ## 重要な指針
+            - TypeScriptエラーの修正を最優先してください
+            - 依存関係の問題を特定し、package.jsonに必要なパッケージを追加してください
+            - コードは簡潔で明快に書いてください
+            - 日本語でコメントを追加してください
+            
+            ## 対応すべき問題
+            1. 不足している依存関係の追加（@supabase/supabase-js、@testing-library/react-native、@types/jest、eslint、jest）
+            2. TypeScript型定義の修正
+            3. 不足ファイルの作成（src/navigation/AppNavigator.tsx等）
+            4. ESLintとJestの設定修正
+            
+            ## 作業手順
+            1. まず問題を分析し、具体的な修正計画を立ててください
+            2. 段階的に修正を実行してください
+            3. 各修正後にテストを実行して確認してください
+            4. 完了時にコミットメッセージを作成してください
 

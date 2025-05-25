@@ -1,7 +1,60 @@
-# Claude Code 設定 - MiraiCare
+# MiraiCare - 高齢者向けヘルスケアSaaS
 
 ## プロジェクト概要
-MiraiCareは高齢者向けヘルスケアSaaSプラットフォームです。Expo React Native、TypeScript、Supabaseを使用して開発されています。
+React Native + TypeScript + Supabaseを使用した高齢者向けヘルスケアアプリケーション
+
+## 技術スタック
+- **フロントエンド**: React Native + TypeScript
+- **バックエンド**: Supabase
+- **テスト**: Jest + @testing-library/react-native
+- **リンター**: ESLint
+- **ビルド**: EAS Build
+
+## 重要なコマンド
+- `npm install`: 依存関係のインストール
+- `npm test`: テスト実行
+- `npm run lint`: ESLintチェック
+- `npm run typecheck`: TypeScriptチェック
+- `npx expo start`: 開発サーバー起動
+- `eas build`: プロダクションビルド
+
+## コードスタイル
+- TypeScriptを使用し、型安全性を重視
+- 関数コンポーネントとHooksを使用
+- 日本語コメントを推奨
+- ファイル名はPascalCase（コンポーネント）またはcamelCase（ユーティリティ）
+
+## プロジェクト構造
+```
+src/
+├── components/     # 再利用可能なコンポーネント
+├── screens/        # 画面コンポーネント
+├── navigation/     # ナビゲーション設定
+├── services/       # API呼び出し
+├── stores/         # 状態管理
+├── types/          # TypeScript型定義
+├── hooks/          # カスタムHooks
+├── utils/          # ユーティリティ関数
+└── config/         # 設定ファイル
+```
+
+## 現在の課題
+1. **依存関係不足**: @supabase/supabase-js、@testing-library/react-native、@types/jest、eslint、jest
+2. **TypeScript型定義**: jest、describe、it、expectの型定義が不足
+3. **不足ファイル**: src/navigation/AppNavigator.tsx等
+4. **設定ファイル**: ESLintとJestの設定が不完全
+
+## 作業指針
+- TypeScriptエラーを最優先で修正
+- 段階的に問題を解決（依存関係 → 型定義 → ファイル作成 → 設定）
+- 各修正後にテストを実行して確認
+- コミットメッセージは日本語で明確に記述
+
+## 注意事項
+- React Native特有の設定に注意
+- Supabaseの認証とデータベース接続を考慮
+- モバイル環境での動作を重視
+- 高齢者向けUIのアクセシビリティを考慮
 
 ## コーディング標準
 
