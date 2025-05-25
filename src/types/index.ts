@@ -105,6 +105,7 @@ export const Colors = {
   error: '#F44336',
   info: '#2196F3',
   overlay: 'rgba(0, 0, 0, 0.5)',
+  disabled: '#BDBDBD',      // 無効状態の色
 };
 
 // 高齢者向けフォントサイズ（最小24pt以上）
