@@ -1,53 +1,61 @@
-import js from '@eslint/js';
-import ts from '@typescript-eslint/eslint-plugin';
-import tsParser from '@typescript-eslint/parser';
-import react from 'eslint-plugin-react';
-
-export default [
-  js.configs.recommended,
-  {
-    files: ['**/*.{ts,tsx}'],
-    languageOptions: {
-      parser: tsParser,
-      parserOptions: {
-        ecmaVersion: 2024,
-        sourceType: 'module',
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-      globals: {
-        React: 'readonly',
-        __DEV__: 'readonly',
-      },
-    },
-    plugins: {
-      '@typescript-eslint': ts,
-      'react': react,
-    },
-    rules: {
-      ...ts.configs.recommended.rules,
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-empty-function': 'off',
-      'react/jsx-uses-react': 'off',
-      'react/react-in-jsx-scope': 'off',
-      'react/prop-types': 'off',
-      'no-console': 'warn',
-      'prefer-const': 'error',
-      'no-var': 'error',
-    },
-    settings: {
-      react: {
-        version: 'detect',
-      },
+module.exports = {
+  root: true,
+  extends: [
+    'eslint:recommended',
+    '@typescript-eslint/recommended',
+    'plugin:react/recommended',
+    'plugin:react-native/all',
+  ],
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 2022,
+    sourceType: 'module',
+    ecmaFeatures: {
+      jsx: true,
     },
   },
-  {
-    files: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
-    languageOptions: {
+  plugins: [
+    '@typescript-eslint',
+    'react',
+    'react-native',
+  ],
+  env: {
+    'react-native/react-native': true,
+    es2022: true,
+    node: true,
+  },
+  globals: {
+    __DEV__: 'readonly',
+    React: 'readonly',
+  },
+  rules: {
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    '@typescript-eslint/explicit-function-return-type': 'off',
+    '@typescript-eslint/explicit-module-boundary-types': 'off',
+    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-empty-function': 'off',
+    'react-native/no-unused-styles': 'error',
+    'react-native/split-platform-components': 'error',
+    'react-native/no-inline-styles': 'warn',
+    'react-native/no-color-literals': 'warn',
+    'react/jsx-uses-react': 'off',
+    'react/react-in-jsx-scope': 'off',
+    'react/prop-types': 'off',
+    'no-console': 'warn',
+    'prefer-const': 'error',
+    'no-var': 'error',
+  },
+  settings: {
+    react: {
+      version: 'detect',
+    },
+  },
+  overrides: [
+    {
+      files: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
+      env: {
+        jest: true,
+      },
       globals: {
         jest: 'readonly',
         describe: 'readonly',
@@ -60,5 +68,5 @@ export default [
         afterAll: 'readonly',
       },
     },
-  },
-];
+  ],
+};

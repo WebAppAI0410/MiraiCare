@@ -1,4 +1,4 @@
-import '@testing-library/jest-native/extend-expect';
+// The newer @testing-library/react-native includes jest matchers by default
 
 // React Native環境のモック
 jest.mock('react-native/Libraries/EventEmitter/NativeEventEmitter');
