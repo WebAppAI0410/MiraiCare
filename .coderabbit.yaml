@@ -1,0 +1,42 @@
+# CodeRabbit Configuration for MiraiCare
+# 高齢者向けヘルスケアSaaS - React Native + TypeScript + Supabase
+
+# 言語設定
+language: ja
+
+# レビューフォーカス
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+# パスベースの指示
+path_instructions:
+  - path: "src/**/*.{ts,tsx}"
+    instructions: |
+      TypeScriptとReact Nativeのベストプラクティスに従ってレビューしてください。
+      高齢者向けアプリとして、アクセシビリティとユーザビリティを重視してください。
+      
+  - path: "**/*.test.{ts,tsx}"
+    instructions: |
+      テストコードの品質とカバレッジを確認してください。
+      エッジケースのテストが含まれているかチェックしてください。
+
+# レビュー除外パターン
+ignore:
+  - "node_modules/**"
+  - "dist/**"
+  - "build/**"
+  - ".expo/**"
+  - "coverage/**"
+  - "*.log"
+
+# 追加設定
+early_access: false
+enable_free_tier: true 

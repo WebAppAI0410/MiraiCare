@@ -3,20 +3,53 @@
 ## プロジェクト概要
 React Native + TypeScript + Supabaseを使用した高齢者向けヘルスケアアプリケーション
 
-## 技術スタック
-- **フロントエンド**: React Native + TypeScript
-- **バックエンド**: Supabase
-- **テスト**: Jest + @testing-library/react-native
-- **リンター**: ESLint
-- **ビルド**: EAS Build
+## 重要な指針
+- TypeScriptエラーの修正を最優先してください
+- 依存関係の問題を特定し、package.jsonに必要なパッケージを追加してください
+- コードは簡潔で明快に書いてください
+- 日本語でコメントを追加してください
+- PRを作成する際は、必ずコミットを作成してからPRを作成してください
 
-## 重要なコマンド
+## 技術スタック
+- **フロントエンド**: React Native + TypeScript + Expo
+- **バックエンド**: Supabase (PostgreSQL + Auth + Storage)
+- **状態管理**: Zustand
+- **ナビゲーション**: React Navigation
+- **テスト**: Jest + React Native Testing Library
+- **リンター**: ESLint + Prettier
+
+## 開発コマンド
 - `npm install`: 依存関係のインストール
-- `npm test`: テスト実行
+- `npm start`: Expo開発サーバー起動
 - `npm run lint`: ESLintチェック
-- `npm run typecheck`: TypeScriptチェック
-- `npx expo start`: 開発サーバー起動
-- `eas build`: プロダクションビルド
+- `npm run lint:fix`: ESLint自動修正
+- `npm test`: テスト実行
+- `npm run typecheck`: TypeScript型チェック
+- `npx tsc --noEmit`: TypeScriptコンパイルチェック
+
+## 対応すべき問題
+1. 不足している依存関係の追加（@supabase/supabase-js、@testing-library/react-native、@types/jest、eslint、jest）
+2. TypeScript型定義の修正
+3. 不足ファイルの作成（src/navigation/AppNavigator.tsx等）
+4. ESLintとJestの設定修正
+
+## ワークフロー
+- PRを作成する前に必ずコミットを作成してください
+- コミットメッセージは日本語で記述してください
+- 各修正後にテストを実行して確認してください
+- TypeScriptエラーがないことを確認してください
+
+## 作業手順
+1. まず問題を分析し、具体的な修正計画を立ててください
+2. 段階的に修正を実行してください
+3. 各修正後にテストを実行して確認してください
+4. 完了時にコミットメッセージを作成してください
+5. PRを作成してください
+
+## 重要：PR作成について
+- 必ずコミットを作成してからPRを作成してください
+- PRタイトルは日本語で記述してください
+- PR説明には実装内容と変更点を詳しく記載してください
 
 ## コードスタイル
 - TypeScriptを使用し、型安全性を重視
