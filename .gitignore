@@ -128,3 +128,10 @@ ehthumbs.db
 
 # Linux
 *~
+
+# Temporary files created by scripts or during testing
+claude_issue_branches.txt
+existing_pr_branches.txt
+error-summary.txt
+workflow-analysis.json
+analysis.txt
