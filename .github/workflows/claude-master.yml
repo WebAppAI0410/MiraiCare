@@ -47,16 +47,16 @@ jobs:
               actionType = context.payload.inputs.action_type;
               shouldProceed = true;
             }
-            // CodeRabbit review
-            else if (context.eventName === 'pull_request_review' && 
-                     context.payload.review.user.login === 'coderabbitai[bot]') {
-              actionType = 'coderabbit_response';
-              shouldProceed = true;
-            }
             // CI failure
             else if (context.eventName === 'workflow_run' && 
                      context.payload.workflow_run.conclusion === 'failure') {
               actionType = 'auto_fix';
+              shouldProceed = true;
+            }
+            // CodeRabbit review
+            else if (context.eventName === 'pull_request_review' && 
+                     context.payload.review.user.login === 'coderabbitai[bot]') {
+              actionType = 'coderabbit_response';
               shouldProceed = true;
             }
             // Claude mention
