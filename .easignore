@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Development files
+.vscode/
+.cursor/
+.claude/
+
+# Documentation
+doc/
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+.tmp/
+.cache/ 

@@ -1,0 +1,14 @@
+name: EAS Production Build
+on:
+  push: { branches: [main] }
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: expo/expo-github-action@v8
+        with: { eas-version: latest }
+      - run: eas build --profile production --platform all --non-interactive
+      - uses: actions/upload-artifact@v4
+        with: { name: release, path: dist } 

@@ -112,7 +112,7 @@ yarn-error.log
 
 # Runtime files
 *.log
-# Note: .vscode/ settings are included in this project for WSL/Claude CLI setup
+.vscode/settings.json
 
 # MCP configuration (contains sensitive tokens)
 .cursor/mcp.json

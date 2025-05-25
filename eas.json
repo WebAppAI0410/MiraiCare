@@ -1,0 +1,13 @@
+{
+  "cli": { "version": ">= 3.16.0" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "production": {
+      "android": { "gradleCommand": "bundleRelease" },
+      "ios":      { "simulator": false }
+    }
+  }
+} 

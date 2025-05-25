@@ -29,8 +29,6 @@ MiraiCare 360は、高齢者本人に転倒・フレイル・メンタルヘル�
 - Node.js 18.x以上
 - npm または yarn
 - Expo CLI
-- WSL2 (Ubuntu 22.04) - Claude CLI自動起動に必要
-- Claude CLI (WSL環境にインストール済み)
 
 ### セットアップ手順
 
@@ -70,28 +68,6 @@ npm run android
 
 # Web
 npm run web
-```
-
-### Claude CLI 自動起動
-
-Cursorでプロジェクトを開くと、WSL環境でClaude CLIが自動的に起動します。
-
-```bash
-# 手動でClaude CLIを起動する場合
-npm run claude
-
-# Claude Chatを直接開始
-npm run claude-chat
-```
-
-**自動起動の仕組み:**
-- `.vscode/tasks.json`: プロジェクトオープン時に自動実行
-- `.vscode/settings.json`: WSL (Ubuntu 22.04) をデフォルトターミナルに設定
-- 新しいターミナルパネルでClaude CLIが起動
-
-**注意:** 
-- 初回起動時はClaude CLI の設定が必要な場合があります
-- WSL環境でAPIキーが設定されているか確認してください
 ```
 
 ## プロジェクト構成
