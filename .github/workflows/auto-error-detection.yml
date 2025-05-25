@@ -1,14 +1,12 @@
 name: Auto Error Detection & Issue Creation
 
 on:
-  workflow_run:
-    workflows: ["RN Unit CI"]
-    types: [completed]
   push:
     branches: [main]
   pull_request:
     types: [opened, synchronize]
   workflow_dispatch: {}
+  # workflow_runは削除 - claude-auto-fix-v2.ymlが担当
 
 jobs:
   detect-errors:

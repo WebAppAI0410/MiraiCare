@@ -1,0 +1,190 @@
+name: Claude Auto Fix V2
+
+on:
+  workflow_run:
+    workflows: ["RN Unit CI"]
+    types: [completed]
+
+jobs:
+  auto-fix-ci-failures:
+    # CI失敗時のみ実行、重複防止
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: claude-auto-fix-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: true
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get PR and retry count
+        id: pr_details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 関連するPRを検索
+            const prs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open'
+            });
+            
+            const pr = prs.data.find(pr => 
+              pr.head.ref.startsWith('claude/issue-') || 
+              pr.title.includes('Claude実装')
+            );
+            
+            if (!pr) {
+              console.log('関連するPRが見つかりません');
+              return;
+            }
+            
+            // 過去24時間のClaude修正試行回数をチェック
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number
+            });
+            
+            const claudeFixComments = comments.data.filter(comment => 
+              comment.body.includes('@claude CI失敗を修正') &&
+              new Date(comment.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
+            );
+            
+            const retryCount = claudeFixComments.length;
+            const maxRetries = 3;
+            
+            core.setOutput('pr_number', pr.number);
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('retry_count', retryCount);
+            core.setOutput('max_retries', maxRetries);
+            core.setOutput('should_retry', retryCount < maxRetries);
+            
+            console.log(`PR #${pr.number}, 修正試行回数: ${retryCount}/${maxRetries}`);
+            
+            return { prNumber: pr.number, retryCount, shouldRetry: retryCount < maxRetries };
+
+      - name: Check CI failures
+        if: steps.pr_details.outputs.should_retry == 'true'
+        id: ci_status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = '${{ steps.pr_details.outputs.pr_number }}';
+            
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+            
+            const { data: checks } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: pr.head.sha
+            });
+            
+            const failedChecks = checks.check_runs.filter(check => 
+              check.conclusion === 'failure' && 
+              (check.name.includes('test') || check.name.includes('lint') || check.name.includes('tsc'))
+            );
+            
+            core.setOutput('has_failures', failedChecks.length > 0);
+            core.setOutput('failed_checks', JSON.stringify(failedChecks.map(c => c.name)));
+            
+            return failedChecks;
+
+      - name: Send Claude fix request
+        if: steps.pr_details.outputs.should_retry == 'true' && steps.ci_status.outputs.has_failures == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = '${{ steps.pr_details.outputs.pr_number }}';
+            const failedChecks = '${{ steps.ci_status.outputs.failed_checks }}';
+            const retryCount = '${{ steps.pr_details.outputs.retry_count }}';
+            
+            const commentBody = [
+              '@claude CI失敗を修正してください',
+              '',
+              '## 🚨 CI失敗の詳細',
+              `失敗したチェック: ${failedChecks}`,
+              `修正試行回数: ${parseInt(retryCount) + 1}/3`,
+              '',
+              '## 📋 修正が必要な項目',
+              '- [ ] TypeScriptコンパイルエラーの修正',
+              '- [ ] 不足している依存関係の追加', 
+              '- [ ] ESLintエラーの修正',
+              '- [ ] ユニットテストの修正',
+              '',
+              '## 🎯 TDDアプローチでの修正手順',
+              '1. **Red**: 失敗しているテストを特定',
+              '2. **Green**: 最小限の修正でテストを通す',
+              '3. **Refactor**: コードの品質を向上',
+              '',
+              '## 📦 不足している可能性のある依存関係',
+              '- `@testing-library/react-native`',
+              '- `@types/jest`',
+              '- `jest-expo`',
+              '- `zustand`',
+              '- `@supabase/supabase-js`',
+              '- `@react-native-async-storage/async-storage`',
+              '',
+              'package.jsonに追加し、TypeScriptエラーを修正してください。'
+            ].join('\\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+            
+            console.log(`Claude修正要求を送信しました (試行 ${parseInt(retryCount) + 1}/3)`);
+
+      - name: Max retries reached
+        if: steps.pr_details.outputs.should_retry == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = '${{ steps.pr_details.outputs.pr_number }}';
+            
+            const commentBody = [
+              '## ⚠️ 自動修正の上限に達しました',
+              '',
+              'Claude Code Actionsによる自動修正が3回失敗しました。',
+              '手動での確認と修正が必要です。',
+              '',
+              '## 🔍 推奨される手動対応',
+              '1. ローカルでブランチをチェックアウト',
+              '2. `npm install` で依存関係を確認',
+              '3. `npx tsc --noEmit` でTypeScriptエラーを確認',
+              '4. `npm run lint` でESLintエラーを確認',
+              '5. `npm test` でテストエラーを確認',
+              '',
+              '## 🏷️ ラベル追加',
+              'このPRに `manual-review-required` ラベルを追加します。'
+            ].join('\\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+            
+            // ラベル追加
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              labels: ['manual-review-required', 'auto-fix-failed']
+            });
+            
+            console.log('手動レビューが必要なPRとしてマークしました'); 
