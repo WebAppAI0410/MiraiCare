@@ -129,10 +129,10 @@ export const getCurrentUser = (): FirebaseUser | null => {
 // Magic Link認証
 export const sendMagicLink = async (email: string): Promise<void> => {
   try {
-    // Firebase Dynamic Linkドメインを使用（環境変数から取得、なければデフォルト値）
-    const dynamicLinkDomain = process.env.MIRAI_FIREBASE_DYNAMIC_LINK || 'https://miraicare.page.link';
+    // 環境変数またはデフォルトのFirebase Dynamic LinkドメインURLを使用
+    const baseUrl = process.env.MIRAI_FIREBASE_DYNAMIC_LINK || 'https://miraicare.page.link';
     const actionCodeSettings = {
-      url: `${dynamicLinkDomain}/auth/complete`, // Firebase Dynamic Linkを使用
+      url: `${baseUrl}/auth/complete`, // Firebase Dynamic Linkドメインを使用
       handleCodeInApp: true,
     };
     
@@ -147,16 +147,12 @@ export const sendMagicLink = async (email: string): Promise<void> => {
 // Magic Linkでのログイン確認・完了
 export const completeMagicLinkSignIn = async (url?: string): Promise<User> => {
   try {
-    // 実際のディープリンクURLを取得（React Native Linkingから）
+    // 完全なディープリンクURLを取得（クエリパラメータを含む）
     let signInUrl = url;
     if (!signInUrl) {
-      // expo-linkingを動的にインポートしてディープリンクURLを取得
-      try {
-        const Linking = await import('expo-linking');
-        signInUrl = await Linking.default.getInitialURL();
-      } catch (linkingError) {
-        console.warn('Expo Linkingが利用できません。URLパラメータを確認してください。');
-      }
+      // React NativeのLinkingから実際のディープリンクURLを取得
+      const { default: Linking } = await import('expo-linking');
+      signInUrl = await Linking.getInitialURL();
     }
 
     if (!signInUrl) {
@@ -283,14 +279,9 @@ export const checkForMagicLinkSignIn = async (url?: string): Promise<boolean> =>
   try {
     let checkUrl = url;
     if (!checkUrl) {
-      // expo-linkingを動的にインポートしてディープリンクURLを取得
-      try {
-        const Linking = await import('expo-linking');
-        checkUrl = await Linking.default.getInitialURL();
-      } catch (linkingError) {
-        console.warn('Expo Linkingが利用できません。');
-        return false;
-      }
+      // React NativeのLinkingから実際のディープリンクURLを取得
+      const { default: Linking } = await import('expo-linking');
+      checkUrl = await Linking.getInitialURL();
     }
     
     if (!checkUrl) {
@@ -299,7 +290,7 @@ export const checkForMagicLinkSignIn = async (url?: string): Promise<boolean> =>
     
     return isSignInWithEmailLink(auth, checkUrl);
   } catch (error) {
-    console.warn('Magic Link状態確認エラー:', error);
+    console.error('Magic Link check error:', error);
     return false;
   }
 };

@@ -66,7 +66,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         user,
         isAuthenticated: !!user,
         isLoading: false,
-        authMethod: user ? 'email' : null,
+        authMethod: user ? 'email' : null, // メール/パスワード認証の場合は'email'を設定
       });
     });
     
@@ -79,7 +79,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
     
     // Magic Linkログインの確認
-    checkForMagicLinkSignIn().then((isMagicLink) => {
+    checkForMagicLinkSignIn().then(isMagicLink => {
       if (isMagicLink) {
         get().completeMagicLink().catch(console.error);
       }
