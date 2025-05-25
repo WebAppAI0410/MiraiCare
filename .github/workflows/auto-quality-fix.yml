@@ -1,0 +1,120 @@
+name: Auto Quality Fix
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_run:
+    workflows: ["RN Unit CI", "EAS Production Build"]
+    types: [completed]
+
+jobs:
+  auto-quality-fix:
+    # CI失敗時またはPR更新時に品質問題を自動修正
+    if: |
+      (github.event_name == 'pull_request') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run quality checks
+        id: quality-check
+        run: |
+          echo "Running quality checks..."
+          
+          # TypeScript check
+          echo "typescript_errors<<EOF" >> $GITHUB_OUTPUT
+          npx tsc --noEmit 2>&1 | tee typescript_errors.txt || true
+          cat typescript_errors.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # ESLint check
+          echo "eslint_errors<<EOF" >> $GITHUB_OUTPUT
+          npm run lint 2>&1 | tee eslint_errors.txt || true
+          cat eslint_errors.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Test check
+          echo "test_errors<<EOF" >> $GITHUB_OUTPUT
+          npm test 2>&1 | tee test_errors.txt || true
+          cat test_errors.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Claude Auto Quality Fix
+        if: |
+          contains(steps.quality-check.outputs.typescript_errors, 'error') ||
+          contains(steps.quality-check.outputs.eslint_errors, 'error') ||
+          contains(steps.quality-check.outputs.test_errors, 'FAIL')
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          timeout_minutes: "30"
+          allowed_tools: "Bash(git status),Bash(git log),Bash(git diff),Bash(npm install),Bash(npm test),Bash(npm run lint),Bash(npm run lint:fix),Bash(npx tsc --noEmit),View,GlobTool,GrepTool,Edit"
+          custom_instructions: |
+            あなたはMiraiCare（React Native + TypeScript + Supabase）プロジェクトの専門エンジニアです。
+            
+            ## 重要なミッション
+            品質チェックで検出されたエラーを自動修正してください。
+            
+            ## 検出されたエラー
+            
+            ### TypeScriptエラー
+            ```
+            ${{ steps.quality-check.outputs.typescript_errors }}
+            ```
+            
+            ### ESLintエラー
+            ```
+            ${{ steps.quality-check.outputs.eslint_errors }}
+            ```
+            
+            ### テストエラー
+            ```
+            ${{ steps.quality-check.outputs.test_errors }}
+            ```
+            
+            ## 修正手順
+            1. エラーの原因を詳細に分析
+            2. 優先度順に修正（TypeScript → ESLint → テスト）
+            3. 各修正後に該当チェックを実行して確認
+            4. すべてのエラーが解決されるまで繰り返し
+            5. 最終的に全体のテストを実行
+            6. 修正内容をコミット
+            
+            ## 修正方針
+            - TypeScriptエラー: 型定義の追加・修正、不足ファイルの作成
+            - ESLintエラー: コードスタイルの修正、ベストプラクティスの適用
+            - テストエラー: テストコードの修正、モックの追加
+            
+            ## 重要な制約
+            - 既存の機能を破壊しない
+            - 安全な修正のみ実行
+            - 不明な場合はコメントで説明を求める
+            - 修正後は必ず品質チェックを実行
+            
+            ## 完了条件
+            - TypeScriptエラーなし
+            - ESLintエラーなし
+            - テストが通る
+            - 適切なコミットメッセージでコミット済み 
