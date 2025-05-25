@@ -9,9 +9,12 @@ import {
   Alert,
   Modal,
   Dimensions,
+  Switch,
+  RefreshControl,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Colors, Reminder } from '../types';
+import { useNotifications, useReminders } from '../hooks/useNotifications';
 import i18n from '../config/i18n';
 
 const { width } = Dimensions.get('window');
@@ -141,67 +144,98 @@ const ReminderScreen: React.FC = () => {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<string | null>(null);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [dailyProgress, setDailyProgress] = useState({
     water: { current: 600, target: 1200 },
     medication: { current: 2, target: 3 }
   });
 
+  // 通知機能のフック
+  const [notificationState, notificationActions] = useNotifications('demo-user'); // TODO: 実際のユーザーIDを使用
+  const reminderHook = useReminders('demo-user'); // TODO: 実際のユーザーIDを使用
+
   useEffect(() => {
     loadReminders();
   }, []);
 
-  const loadReminders = async () => {
-    // TODO: Supabaseからリマインダーデータを取得
-    // 現在はダミーデータ
-    const today = new Date();
-    const dummyReminders: Reminder[] = [
-      {
-        id: '1',
-        type: 'water',
-        title: '朝の水分補給',
-        scheduledTime: new Date(today.setHours(8, 0, 0, 0)).toISOString(),
-        completed: true,
-        completedAt: new Date(today.setHours(8, 15, 0, 0)).toISOString(),
-      },
-      {
-        id: '2',
-        type: 'medication',
-        title: '朝の薬',
-        scheduledTime: new Date(today.setHours(8, 30, 0, 0)).toISOString(),
-        completed: true,
-        completedAt: new Date(today.setHours(8, 35, 0, 0)).toISOString(),
-      },
-      {
-        id: '3',
-        type: 'water',
-        title: '昼の水分補給',
-        scheduledTime: new Date(today.setHours(12, 0, 0, 0)).toISOString(),
-        completed: false,
-      },
-      {
-        id: '4',
-        type: 'medication',
-        title: '昼の薬',
-        scheduledTime: new Date(today.setHours(12, 30, 0, 0)).toISOString(),
-        completed: false,
-      },
-      {
-        id: '5',
-        type: 'water',
-        title: '夕方の水分補給',
-        scheduledTime: new Date(today.setHours(18, 0, 0, 0)).toISOString(),
-        completed: false,
-      },
-      {
-        id: '6',
-        type: 'medication',
-        title: '夜の薬',
-        scheduledTime: new Date(today.setHours(20, 0, 0, 0)).toISOString(),
-        completed: false,
-      },
-    ];
+  // 通知設定変更時の処理
+  useEffect(() => {
+    if (notificationState.isInitialized) {
+      loadReminders();
+    }
+  }, [notificationState.settings]);
 
-    setReminders(dummyReminders);
+  const loadReminders = async () => {
+    try {
+      setRefreshing(true);
+      
+      // 実際のリマインダーデータを取得
+      const todayReminders = await reminderHook.getTodayReminders();
+      
+      if (todayReminders.length > 0) {
+        setReminders(todayReminders);
+      } else {
+        // フォールバック用のダミーデータ
+        const today = new Date();
+        const dummyReminders: Reminder[] = [
+          {
+            id: '1',
+            type: 'water',
+            title: '朝の水分補給',
+            scheduledTime: new Date(today.setHours(8, 0, 0, 0)).toISOString(),
+            completed: true,
+            completedAt: new Date(today.setHours(8, 15, 0, 0)).toISOString(),
+          },
+          {
+            id: '2',
+            type: 'medication',
+            title: '朝の薬',
+            scheduledTime: new Date(today.setHours(8, 30, 0, 0)).toISOString(),
+            completed: true,
+            completedAt: new Date(today.setHours(8, 35, 0, 0)).toISOString(),
+          },
+          {
+            id: '3',
+            type: 'water',
+            title: '昼の水分補給',
+            scheduledTime: new Date(today.setHours(12, 0, 0, 0)).toISOString(),
+            completed: false,
+          },
+          {
+            id: '4',
+            type: 'medication',
+            title: '昼の薬',
+            scheduledTime: new Date(today.setHours(12, 30, 0, 0)).toISOString(),
+            completed: false,
+          },
+          {
+            id: '5',
+            type: 'water',
+            title: '夕方の水分補給',
+            scheduledTime: new Date(today.setHours(18, 0, 0, 0)).toISOString(),
+            completed: false,
+          },
+          {
+            id: '6',
+            type: 'medication',
+            title: '夜の薬',
+            scheduledTime: new Date(today.setHours(20, 0, 0, 0)).toISOString(),
+            completed: false,
+          },
+        ];
+        setReminders(dummyReminders);
+      }
+    } catch (error) {
+      console.error('リマインダー読み込みエラー:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // プルリフレッシュ
+  const onRefresh = async () => {
+    await loadReminders();
   };
 
   const handleToggleReminder = async (id: string) => {
@@ -324,8 +358,46 @@ const ReminderScreen: React.FC = () => {
         />
       </View>
 
+      {/* 通知設定ボタン */}
+      <View style={styles.notificationSection}>
+        <TouchableOpacity
+          style={styles.notificationButton}
+          onPress={() => setShowNotificationSettings(true)}
+          accessibilityRole="button"
+          accessibilityLabel="通知設定"
+        >
+          <Text style={styles.notificationButtonIcon}>🔔</Text>
+          <Text style={styles.notificationButtonText}>通知設定</Text>
+          <View style={[
+            styles.notificationStatusBadge, 
+            notificationState.settings.enabled ? styles.enabledBadge : styles.disabledBadge
+          ]}>
+            <Text style={styles.notificationStatusText}>
+              {notificationState.settings.enabled ? 'ON' : 'OFF'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        
+        {notificationState.unreadCount > 0 && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadText}>{notificationState.unreadCount}</Text>
+          </View>
+        )}
+      </View>
+
       {/* リマインダー一覧 */}
-      <ScrollView style={styles.remindersSection} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.remindersSection} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
+        }
+      >
         <Text style={styles.sectionTitle}>今日のリマインダー</Text>
         {getTodayReminders().map(reminder => (
           <ReminderCard
@@ -371,6 +443,123 @@ const ReminderScreen: React.FC = () => {
                 <Text style={styles.confirmButtonText}>確認完了</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 通知設定モーダル */}
+      <Modal
+        visible={showNotificationSettings}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNotificationSettings(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.settingsModalContent}>
+            <Text style={styles.modalTitle}>通知設定</Text>
+            
+            <View style={styles.settingsList}>
+              <View style={styles.settingItem}>
+                <Text style={styles.settingLabel}>プッシュ通知</Text>
+                <Switch
+                  value={notificationState.settings.enabled}
+                  onValueChange={async (value) => {
+                    await notificationActions.updateSettings({ enabled: value });
+                  }}
+                  trackColor={{ false: '#E0E0E0', true: Colors.primary }}
+                  thumbColor={notificationState.settings.enabled ? Colors.surface : '#F4F3F4'}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <Text style={styles.settingLabel}>💧 水分補給リマインダー</Text>
+                <Switch
+                  value={notificationState.settings.waterReminders}
+                  onValueChange={async (value) => {
+                    await notificationActions.updateSettings({ waterReminders: value });
+                  }}
+                  trackColor={{ false: '#E0E0E0', true: Colors.secondary }}
+                  thumbColor={notificationState.settings.waterReminders ? Colors.surface : '#F4F3F4'}
+                  disabled={!notificationState.settings.enabled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <Text style={styles.settingLabel}>💊 服薬リマインダー</Text>
+                <Switch
+                  value={notificationState.settings.medicationReminders}
+                  onValueChange={async (value) => {
+                    await notificationActions.updateSettings({ medicationReminders: value });
+                  }}
+                  trackColor={{ false: '#E0E0E0', true: Colors.success }}
+                  thumbColor={notificationState.settings.medicationReminders ? Colors.surface : '#F4F3F4'}
+                  disabled={!notificationState.settings.enabled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <Text style={styles.settingLabel}>📊 日次サマリー</Text>
+                <Switch
+                  value={notificationState.settings.dailySummary}
+                  onValueChange={async (value) => {
+                    await notificationActions.updateSettings({ dailySummary: value });
+                  }}
+                  trackColor={{ false: '#E0E0E0', true: Colors.info }}
+                  thumbColor={notificationState.settings.dailySummary ? Colors.surface : '#F4F3F4'}
+                  disabled={!notificationState.settings.enabled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <Text style={styles.settingLabel}>🔊 音声通知</Text>
+                <Switch
+                  value={notificationState.settings.sound}
+                  onValueChange={async (value) => {
+                    await notificationActions.updateSettings({ sound: value });
+                  }}
+                  trackColor={{ false: '#E0E0E0', true: Colors.primary }}
+                  thumbColor={notificationState.settings.sound ? Colors.surface : '#F4F3F4'}
+                  disabled={!notificationState.settings.enabled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <Text style={styles.settingLabel}>📳 バイブレーション</Text>
+                <Switch
+                  value={notificationState.settings.vibration}
+                  onValueChange={async (value) => {
+                    await notificationActions.updateSettings({ vibration: value });
+                  }}
+                  trackColor={{ false: '#E0E0E0', true: Colors.primary }}
+                  thumbColor={notificationState.settings.vibration ? Colors.surface : '#F4F3F4'}
+                  disabled={!notificationState.settings.enabled}
+                />
+              </View>
+            </View>
+
+            <View style={styles.settingsActions}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.testButton]}
+                onPress={async () => {
+                  await notificationActions.sendTestNotification();
+                  Alert.alert('テスト完了', 'テスト通知を送信しました');
+                }}
+                disabled={!notificationState.settings.enabled}
+              >
+                <Text style={styles.actionButtonText}>テスト通知</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.closeButton]}
+                onPress={() => setShowNotificationSettings(false)}
+              >
+                <Text style={styles.actionButtonText}>閉じる</Text>
+              </TouchableOpacity>
+            </View>
+
+            {notificationState.error && (
+              <Text style={styles.errorText}>{notificationState.error}</Text>
+            )}
           </View>
         </View>
       </Modal>
@@ -623,6 +812,114 @@ const styles = StyleSheet.create({
     color: Colors.surface,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // 通知設定関連のスタイル
+  notificationSection: {
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginBottom: 8,
+    position: 'relative',
+  },
+  notificationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  notificationButtonIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  notificationButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.text,
+  },
+  notificationStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 40,
+    alignItems: 'center',
+  },
+  enabledBadge: {
+    backgroundColor: Colors.success,
+  },
+  disabledBadge: {
+    backgroundColor: Colors.textSecondary,
+  },
+  notificationStatusText: {
+    color: Colors.surface,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 16,
+    backgroundColor: Colors.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unreadText: {
+    color: Colors.surface,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  // モーダルスタイル
+  settingsModalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    width: width * 0.9,
+    maxWidth: 500,
+    maxHeight: '80%',
+  },
+  settingsList: {
+    marginBottom: 24,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  settingLabel: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.text,
+    marginRight: 16,
+  },
+  settingsActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  testButton: {
+    backgroundColor: Colors.info,
+    flex: 1,
+    marginRight: 8,
+  },
+  closeButton: {
+    backgroundColor: Colors.textSecondary,
+    flex: 1,
+    marginLeft: 8,
+  },
+  errorText: {
+    color: Colors.error,
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 16,
   },
 });
 
