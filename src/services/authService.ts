@@ -44,6 +44,10 @@ export const subscribeToAuthState = (callback: (user: User | null) => void) => {
 
 // 簡単ログイン（メールアドレスとパスワード）
 export const signInWithEmail = async (email: string, password: string): Promise<User> => {
+  if (!email || !password) {
+    throw new Error('メールアドレスとパスワードを入力してください');
+  }
+  
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const firebaseUser = userCredential.user;
@@ -100,7 +104,7 @@ export const signOut = async (): Promise<void> => {
   try {
     await firebaseSignOut(auth);
   } catch (error) {
-    throw handleAuthError(error as AuthError);
+    throw new Error('ログアウトに失敗しました');
   }
 };
 
@@ -109,6 +113,10 @@ export const signOutUser = signOut;
 
 // パスワードリセット
 export const resetPassword = async (email: string): Promise<void> => {
+  if (!email) {
+    throw new Error('メールアドレスを入力してください');
+  }
+  
   try {
     await sendPasswordResetEmail(auth, email);
   } catch (error) {
@@ -117,8 +125,23 @@ export const resetPassword = async (email: string): Promise<void> => {
 };
 
 // 現在のユーザーを取得
-export const getCurrentUser = (): FirebaseUser | null => {
-  return auth.currentUser;
+export const getCurrentUser = async (): Promise<User | null> => {
+  const firebaseUser = auth.currentUser;
+  if (!firebaseUser) return null;
+  
+  try {
+    const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid));
+    if (userDoc.exists()) {
+      return {
+        ...userDoc.data() as User,
+        id: firebaseUser.uid,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('ユーザー情報の取得エラー:', error);
+    return null;
+  }
 };
 
 // エラーハンドリング（高齢者にとって分かりやすいメッセージ）
@@ -130,13 +153,14 @@ const handleAuthError = (error: AuthError): Error => {
       message = 'このメールアドレスは登録されていません。';
       break;
     case 'auth/wrong-password':
-      message = 'パスワードが間違っています。';
+    case 'auth/invalid-credential':
+      message = 'ログインに失敗しました。メールアドレスまたはパスワードが正しくありません。';
       break;
     case 'auth/email-already-in-use':
       message = 'このメールアドレスは既に使用されています。';
       break;
     case 'auth/weak-password':
-      message = 'パスワードは6文字以上で入力してください。';
+      message = 'パスワードは6文字以上で設定してください。';
       break;
     case 'auth/invalid-email':
       message = 'メールアドレスの形式が正しくありません。';

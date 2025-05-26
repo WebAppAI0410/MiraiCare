@@ -2,6 +2,7 @@ import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import HomeScreen from '../../src/screens/HomeScreen';
+import { Colors } from '../../src/types';
 
 // モックナビゲーション
 const mockNavigate = jest.fn();
@@ -45,19 +46,18 @@ describe('HomeScreen', () => {
       </TestWrapper>
     );
 
-    // 主要な要素が表示されることを確認
-    expect(getByText('今日の健康状態')).toBeTruthy();
-    expect(getByText('リスクレベル')).toBeTruthy();
+    expect(getByText('おはようございます')).toBeTruthy();
+    expect(getByText('今日のリスク')).toBeTruthy();
   });
 
   it('リスクカードがタップ可能である', async () => {
-    const { getByText } = render(
+    const { getByLabelText } = render(
       <TestWrapper>
         <HomeScreen />
       </TestWrapper>
     );
 
-    const riskCard = getByText('リスクレベル');
+    const riskCard = getByLabelText('今日のリスク 中');
     fireEvent.press(riskCard);
 
     // ナビゲーションが呼ばれることを確認
@@ -73,8 +73,7 @@ describe('HomeScreen', () => {
       </TestWrapper>
     );
 
-    // 歩数セクションが表示されることを確認
-    expect(getByText('今日の歩数')).toBeTruthy();
+    expect(getByText('歩数')).toBeTruthy();
   });
 
   it('気分データが表示される', () => {
@@ -84,8 +83,7 @@ describe('HomeScreen', () => {
       </TestWrapper>
     );
 
-    // 気分セクションが表示されることを確認
-    expect(getByText('今日の気分')).toBeTruthy();
+    expect(getByText(/ムード/)).toBeTruthy();
   });
 
   it('リマインダーセクションが表示される', () => {
@@ -96,7 +94,7 @@ describe('HomeScreen', () => {
     );
 
     // リマインダーセクションが表示されることを確認
-    expect(getByText('今日のリマインダー')).toBeTruthy();
+    expect(getByText('水分を飲む')).toBeTruthy();
   });
 
   it('アクセシビリティラベルが適切に設定されている', () => {
@@ -106,8 +104,7 @@ describe('HomeScreen', () => {
       </TestWrapper>
     );
 
-    // アクセシビリティラベルがあることを確認
-    expect(getByLabelText(/今日のリスク/)).toBeTruthy();
+    expect(getByLabelText('今日のリスク 中')).toBeTruthy();
   });
 
   it('異なるリスクレベルで適切な色が表示される', () => {
@@ -117,20 +114,26 @@ describe('HomeScreen', () => {
       </TestWrapper>
     );
 
-    // リスクカードが表示されることを確認
-    expect(getByText('今日のリスク')).toBeTruthy();
+    const levelText = getByText('中');
+    const styles = Array.isArray(levelText.props.style) 
+      ? levelText.props.style 
+      : [levelText.props.style];
+    
+    // スタイル配列の中に color: Colors.warning を持つオブジェクトが含まれているか確認
+    const hasWarningColor = styles.some((style: any) => 
+      style && typeof style === 'object' && style.color === Colors.warning
+    );
+    
+    expect(hasWarningColor).toBe(true);
   });
 
-  it('ローディング状態が適切に処理される', async () => {
-    const { getByTestId, queryByTestId } = render(
+  it('ローディングインジケーターが表示されていない', () => {
+    const { queryByTestId } = render(
       <TestWrapper>
         <HomeScreen />
       </TestWrapper>
     );
 
-    // ローディングインジケーターの確認（実装に応じて調整）
-    await waitFor(() => {
-      expect(queryByTestId('loading-indicator')).toBeFalsy();
-    });
+    expect(queryByTestId('loading-indicator')).toBeNull();
   });
 });

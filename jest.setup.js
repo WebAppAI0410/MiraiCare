@@ -20,37 +20,58 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(),
 }));
 
+jest.mock('expo-sensors', () => ({
+  Pedometer: {
+    isAvailableAsync: jest.fn().mockResolvedValue(true),
+    getStepCountAsync: jest.fn().mockResolvedValue({ steps: 5000 }),
+    watchStepCount: jest.fn().mockReturnValue({
+      remove: jest.fn(),
+    }),
+  },
+}));
+
 // Mock Firebase
 jest.mock('firebase/app', () => ({
-  initializeApp: jest.fn(),
+  initializeApp: jest.fn(() => ({})),
 }));
 
 jest.mock('firebase/auth', () => ({
-  getAuth: jest.fn(),
+  getAuth: jest.fn(() => ({
+    currentUser: null,
+  })),
   signInWithEmailAndPassword: jest.fn(),
   createUserWithEmailAndPassword: jest.fn(),
   signOut: jest.fn(),
+  onAuthStateChanged: jest.fn(),
+  sendPasswordResetEmail: jest.fn(),
+  updateProfile: jest.fn(),
+  User: jest.fn(),
 }));
 
-// Mock Supabase
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: jest.fn(() => ({
-    auth: {
-      signIn: jest.fn(),
-      signUp: jest.fn(),
-      signOut: jest.fn(),
-      getUser: jest.fn(),
-    },
-    from: jest.fn(() => ({
-      select: jest.fn().mockReturnThis(),
-      insert: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      delete: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn(),
-    })),
-  })),
+jest.mock('firebase/firestore', () => ({
+  getFirestore: jest.fn(() => ({})),
+  collection: jest.fn(),
+  doc: jest.fn(),
+  addDoc: jest.fn(),
+  getDoc: jest.fn(),
+  getDocs: jest.fn(),
+  updateDoc: jest.fn(),
+  deleteDoc: jest.fn(),
+  setDoc: jest.fn(),
+  query: jest.fn(),
+  where: jest.fn(),
+  orderBy: jest.fn(),
+  limit: jest.fn(),
+  onSnapshot: jest.fn(),
+  serverTimestamp: jest.fn(() => new Date()),
+  connectFirestoreEmulator: jest.fn(),
 }));
+
+jest.mock('firebase/functions', () => ({
+  getFunctions: jest.fn(() => ({})),
+  connectFunctionsEmulator: jest.fn(),
+}));
+
 
 // Silence console warnings in tests
 global.console = {
