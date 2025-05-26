@@ -105,6 +105,10 @@ export const Colors = {
   error: '#F44336',
   info: '#2196F3',
   overlay: 'rgba(0, 0, 0, 0.5)',
+  // 追加のカラー定義
+  disabled: '#C7C7CC',
+  gray: '#8E8E93',
+  white: '#FFFFFF',
 };
 
 // 高齢者向けフォントサイズ（最小24pt以上）

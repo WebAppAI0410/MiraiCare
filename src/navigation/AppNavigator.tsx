@@ -27,7 +27,7 @@ export default function AppNavigator({ showOnboarding, onOnboardingComplete }: A
             if (route.name === 'Home') {
               iconName = focused ? 'home' : 'home-outline';
             } else if (route.name === 'Activity') {
-              iconName = focused ? 'activity' : 'activity-outline';
+              iconName = focused ? 'fitness' : 'fitness-outline';
             } else if (route.name === 'MoodMirror') {
               iconName = focused ? 'heart' : 'heart-outline';
             } else if (route.name === 'Reminder') {

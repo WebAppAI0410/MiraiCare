@@ -1,5 +1,3 @@
-import React from 'react';
-
 // Simplified test without complex components
 describe('App', () => {
   it('basic test passes', () => {
