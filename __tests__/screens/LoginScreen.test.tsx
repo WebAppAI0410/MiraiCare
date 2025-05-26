@@ -182,7 +182,7 @@ describe('LoginScreen', () => {
   });
 
   it('ローディング状態が適切に表示される', async () => {
-    const { getByText, getByLabelText, getByA11yRole } = render(
+    const { getByText, getByLabelText, getByRole } = render(
       <LoginScreen {...defaultProps} />
     );
 
@@ -201,7 +201,7 @@ describe('LoginScreen', () => {
     fireEvent.press(loginButton);
 
     // ローディングインジケーターが表示されることを確認
-    expect(getByA11yRole('progressbar')).toBeTruthy();
+    expect(getByRole('progressbar')).toBeTruthy();
   });
 
   it('アクセシビリティラベルが適切に設定されている', () => {
