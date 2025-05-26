@@ -1,63 +1,46 @@
-name: Claude Code Actions
+name: Claude Manual Request
 
 on:
-  issues:
-    types: [opened, edited]
   issue_comment:
     types: [created, edited]
-  pull_request:
-    types: [opened, edited, synchronize]
   pull_request_review_comment:
     types: [created, edited]
+  # PR本文の@claudeもトリガーに含めるか検討 (今回はコメントのみに絞る)
 
 jobs:
-  claude:
-    if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude')) ||
-      (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+  claude_manual_response:
+    # コメント本文に @claude が含まれている場合のみ実行
+    if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
-      group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
-      cancel-in-progress: false
+      group: claude-manual-${{ github.event.issue.number || github.event.pull_request.number }}-${{ github.event.comment.id }}
+      cancel-in-progress: false # 手動リクエストは中断しない
     permissions:
       contents: write
       issues: write
       pull-requests: write
-      actions: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # PRコメントの場合はPRのHEADを、Issueコメントの場合はデフォルトブランチをチェックアウト
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Claude Code Response
         uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          trigger_phrase: "@claude"
-          timeout_minutes: "30"
-          allowed_tools: "Bash(git status),Bash(git log),Bash(git diff),Bash(npm install),Bash(npm test),Bash(npm run lint),View,GlobTool,GrepTool,Edit"
+          trigger_phrase: "@claude" # これをトリガーとしてClaudeがメンション以降の指示を読み取る
+          timeout_minutes: "25"
+          allowed_tools: "Bash(git status),Bash(git log),Bash(git diff),Bash(npm install),Bash(npm test),Bash(npm run lint),View,GlobTool,GrepTool,Edit,Bash(pwd),Bash(ls)"
           custom_instructions: |
-            あなたはMiraiCare（React Native + TypeScript + Supabase）プロジェクトの専門エンジニアです。
-            
-            ## 重要な指針
-            - TypeScriptエラーの修正を最優先してください
-            - 依存関係の問題を特定し、package.jsonに必要なパッケージを追加してください
-            - コードは簡潔で明快に書いてください
-            - 日本語でコメントを追加してください
-            
-            ## 対応すべき問題
-            1. 不足している依存関係の追加（@supabase/supabase-js、@testing-library/react-native、@types/jest、eslint、jest）
-            2. TypeScript型定義の修正
-            3. 不足ファイルの作成（src/navigation/AppNavigator.tsx等）
-            4. ESLintとJestの設定修正
-            
-            ## 作業手順
-            1. まず問題を分析し、具体的な修正計画を立ててください
-            2. 段階的に修正を実行してください
-            3. 各修正後にテストを実行して確認してください
-            4. 完了時にコミットメッセージを作成してください
+            あなたはMiraiCare（React Native + TypeScript + Supabase）プロジェクトの専門エンジニアアシスタントです。
+            メンションされたコメントの内容に基づいて、開発者の指示に従ってタスクを実行してください。
+            指示が不明確な場合は、確認を求めることも可能です。
+            コード修正、分析、ドキュメント生成、質問への回答など、広範なリクエストに対応してください。
+            日本語で応答し、必要に応じてコードブロックや詳細な説明を含めてください。
+          # model_name: claude-3-opus-20240229 # (アクションのデフォルトに任せる)
 

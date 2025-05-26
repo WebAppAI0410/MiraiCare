@@ -1,135 +1,35 @@
-name: Claude Master Workflow
+name: Claude Admin Tools
 
 on:
-  pull_request_review:
-    types: [submitted]
-  workflow_run:
-    workflows: ["RN Unit CI"]
-    types: [completed]
-    # branches: [main]  # Removed to trigger on all branches
-  issue_comment:
-    types: [created]
   workflow_dispatch:
     inputs:
       action_type:
         description: '実行アクション'
         required: true
-        default: 'auto_fix'
+        default: 'quality_check' # デフォルトを quality_check に変更
         type: choice
         options:
-          - auto_fix
-          - coderabbit_response
-          - quality_check
+          - run_claude_autofix # auto_fix から名称変更して意図を明確に
+          - run_quality_check
+          # - run_coderabbit_response # 手動でのCodeRabbit応答は通常不要か
 
 jobs:
-  claude-dispatcher:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    concurrency:
-      group: claude-master-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
-      cancel-in-progress: true
-    
-    outputs:
-      action_type: ${{ steps.determine_action.outputs.action_type }}
-      should_proceed: ${{ steps.determine_action.outputs.should_proceed }}
-    
-    steps:
-      - name: Determine action type
-        id: determine_action
-        uses: actions/github-script@v7
-        with:
-          script: |
-            let actionType = 'none';
-            let shouldProceed = false;
-            
-            // Manual dispatch
-            if (context.eventName === 'workflow_dispatch') {
-              actionType = context.payload.inputs.action_type;
-              shouldProceed = true;
-            }
-            // CI failure
-            else if (context.eventName === 'workflow_run' && 
-                     context.payload.workflow_run.conclusion === 'failure') {
-              actionType = 'auto_fix';
-              shouldProceed = true;
-            }
-            // CodeRabbit review
-            else if (context.eventName === 'pull_request_review' && 
-                     context.payload.review.user.login === 'coderabbitai[bot]') {
-              actionType = 'coderabbit_response';
-              shouldProceed = true;
-            }
-            // Claude mention
-            else if (context.eventName === 'issue_comment' && 
-                     context.payload.comment.body.includes('@claude')) {
-              actionType = 'auto_fix';
-              shouldProceed = true;
-            }
-            
-            core.setOutput('action_type', actionType);
-            core.setOutput('should_proceed', shouldProceed);
-            
-            console.log(`Action: ${actionType}, Proceed: ${shouldProceed}`);
+  # claude-dispatcher は不要になるため削除
 
-  coderabbit-handler:
-    needs: claude-dispatcher
-    if: needs.claude-dispatcher.outputs.action_type == 'coderabbit_response' && needs.claude-dispatcher.outputs.should_proceed == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
-    
-    steps:
-      - name: CodeRabbit Response
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const reviewBody = context.payload.review.body;
-            const prNumber = context.payload.pull_request.number;
-            
-            const hasSuggestions = reviewBody.includes('**Suggestion:**') || 
-                                 reviewBody.includes('**提案:**');
-            
-            if (hasSuggestions) {
-              const truncatedReview = reviewBody.length > 500 ? 
-                reviewBody.substring(0, 500) + '...' : reviewBody;
-              
-              const responseText = [
-                '## 🤖 CodeRabbitレビュー検知',
-                '',
-                'CodeRabbitからの提案を検知しました。',
-                '',
-                '### 📝 レビュー内容',
-                truncatedReview,
-                '',
-                '### 🔧 対応方法',
-                '1. 提案された修正を確認',
-                '2. 必要に応じて手動で修正',
-                '3. または @claude メンションで自動修正を依頼',
-                '',
-                '---',
-                '*CodeRabbit統合システム*'
-              ].join('\n');
-
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: responseText
-              });
-              
-              console.log('CodeRabbitレビューに対応しました');
-            }
-
-  auto-fix-handler:
-    needs: claude-dispatcher
-    if: needs.claude-dispatcher.outputs.action_type == 'auto_fix' && needs.claude-dispatcher.outputs.should_proceed == 'true'
+  # auto-fix-handler を run_claude_autofix にリネームし、直接ディスパッチ入力を参照
+  run_claude_autofix:
+    if: github.event.inputs.action_type == 'run_claude_autofix'
     runs-on: ubuntu-latest
     timeout-minutes: 12
-    
+    permissions:
+      contents: write
+      issues: write # IssueやPRにコメントするために必要
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 1
+          fetch-depth: 1 # 最新のコードを取得
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -140,101 +40,43 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
 
-      - name: Quality analysis
-        id: analysis
+      - name: Quality analysis for auto-fix
+        id: analysis_for_fix
         run: |
-          echo "=== 品質分析 ===" | tee analysis.txt
-          
-          # TypeScript
+          echo "=== 品質分析 (自動修正目的) ===" | tee analysis.txt
           echo "typescript_errors=false" >> $GITHUB_OUTPUT
-          if ! npx tsc --noEmit 2>&1 | tee -a analysis.txt; then
-            echo "typescript_errors=true" >> $GITHUB_OUTPUT
-          fi
-          
-          # ESLint
+          if ! npx tsc --noEmit --project tsconfig.json 2>&1 | tee -a analysis.txt; then echo "typescript_errors=true" >> $GITHUB_OUTPUT; fi
           echo "eslint_errors=false" >> $GITHUB_OUTPUT
-          if ! npm run lint 2>&1 | tee -a analysis.txt; then
-            echo "eslint_errors=true" >> $GITHUB_OUTPUT
-          fi
-          
-          # Tests
+          if ! npm run lint 2>&1 | tee -a analysis.txt; then echo "eslint_errors=true" >> $GITHUB_OUTPUT; fi
           echo "test_errors=false" >> $GITHUB_OUTPUT
-          if ! npm test 2>&1 | tee -a analysis.txt; then
-            echo "test_errors=true" >> $GITHUB_OUTPUT
-          fi
+          if ! npm test 2>&1 | tee -a analysis.txt; then echo "test_errors=true" >> $GITHUB_OUTPUT; fi
 
-      - name: Claude auto-fix
-        if: steps.analysis.outputs.typescript_errors == 'true' || steps.analysis.outputs.eslint_errors == 'true' || steps.analysis.outputs.test_errors == 'true'
-        uses: actions/github-script@v7
+      - name: Claude Auto-Fix Task
+        if: steps.analysis_for_fix.outputs.typescript_errors == 'true' || steps.analysis_for_fix.outputs.eslint_errors == 'true' || steps.analysis_for_fix.outputs.test_errors == 'true'
+        uses: anthropics/claude-code-action@beta
         with:
-          script: |
-            const fs = require('fs');
-            const analysisContent = fs.readFileSync('analysis.txt', 'utf8');
-            
-            let targetNumber;
-            let contextInfo = '';
-            
-            // Determine target (PR or Issue)
-            if (context.eventName === 'workflow_run') {
-              // Find related PR
-              const prs = await github.rest.pulls.list({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: 'open'
-              });
-              
-              const pr = prs.data.find(pr => 
-                pr.head.ref === context.payload.workflow_run.head_branch
-              );
-              
-              if (pr) {
-                targetNumber = pr.number;
-                contextInfo = `CI失敗: ${context.payload.workflow_run.name}`;
-              }
-            } else if (context.eventName === 'issue_comment') {
-              targetNumber = context.payload.issue.number;
-              contextInfo = 'Claude メンション';
-            }
-            
-            if (targetNumber) {
-              const reportLines = [
-                '## 🤖 Claude自動修正分析',
-                '',
-                `**トリガー**: ${contextInfo}`,
-                `**TypeScript**: ${steps.analysis.outputs.typescript_errors === 'true' ? '❌ エラー' : '✅ 正常'}`,
-                `**ESLint**: ${steps.analysis.outputs.eslint_errors === 'true' ? '❌ エラー' : '✅ 正常'}`,
-                `**テスト**: ${steps.analysis.outputs.test_errors === 'true' ? '❌ エラー' : '✅ 正常'}`,
-                '',
-                '### 📊 分析結果',
-                '```',
-                analysisContent.substring(0, 1000),
-                '```',
-                '',
-                '### 🔧 推奨対応',
-                '1. 段階的修正: TypeScript → ESLint → テスト',
-                '2. 依存関係確認: package.json更新',
-                '3. 型定義追加: 不足ファイル作成',
-                '',
-                '---',
-                '*Claude Master Workflow*'
-              ];
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          timeout_minutes: "10"
+          allowed_tools: "Edit,View,GrepTool,Bash(npm test)"
+          custom_instructions: |
+            開発者からの手動実行リクエストです。
+            以下の品質分析結果に基づいて、コードの自動修正を試みてください。
+            ```
+            ${{ steps.analysis_for_fix.outputs.analysis_output }} # analysis.txt の内容を渡す想定だが、直接は難しい
+            ```
+            分析結果の詳細は、先行する「Quality analysis for auto-fix」ステップのログを参照してください。
+            修正案は、このワークフローを実行したブランチ (${{ github.ref_name }}) に直接コミットしてください。
+            コミットメッセージは「Fix: Apply Claude auto-fix based on quality analysis」としてください。
+            修正後は `npm test` を実行し、テストが成功することを確認してください。
 
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: targetNumber,
-                body: reportLines.join('\n')
-              });
-              
-              console.log(`修正分析をPR/Issue #${targetNumber}に投稿しました`);
-            }
-
-  quality-check:
-    needs: claude-dispatcher
-    if: needs.claude-dispatcher.outputs.action_type == 'quality_check' && needs.claude-dispatcher.outputs.should_proceed == 'true'
+  # quality-check を run_quality_check にリネームし、直接ディスパッチ入力を参照
+  run_quality_check:
+    if: github.event.inputs.action_type == 'run_quality_check'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    
+    permissions:
+      contents: read # 品質チェックのみなので読み取り専用
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -242,19 +84,17 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
 
       - name: Comprehensive quality check
         run: |
           echo "=== 品質チェック結果 ==="
-          
-          echo "🔍 TypeScript:"
-          npx tsc --noEmit && echo "✅ 正常" || echo "❌ エラー"
-          
-          echo "🔍 ESLint:"
-          npm run lint && echo "✅ 正常" || echo "❌ エラー"
-          
-          echo "🔍 テスト:"
-          npm test && echo "✅ 正常" || echo "❌ エラー"
-          
-          echo "🔍 依存関係:"
-          npm audit --audit-level=high && echo "✅ 正常" || echo "⚠️ 警告" 
+          echo "🔍 TypeScript (tsc --noEmit --project tsconfig.json):"
+          if npx tsc --noEmit --project tsconfig.json; then echo "✅ 正常"; else echo "❌ エラー"; fi
+          echo "🔍 ESLint (npm run lint):"
+          if npm run lint; then echo "✅ 正常"; else echo "❌ エラー"; fi
+          echo "🔍 テスト (npm test):"
+          if npm test; then echo "✅ 正常"; else echo "❌ エラー"; fi
+          echo "🔍 依存関係 (npm audit --audit-level=high):"
+          if npm audit --audit-level=high; then echo "✅ 正常"; else echo "⚠️ 警告またはエラー"; fi 
