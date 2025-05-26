@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "test": "jest",
     "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
     "claude": "wsl -d Ubuntu-22.04 -- claude",
     "claude-chat": "wsl -d Ubuntu-22.04 -- claude chat"
   },

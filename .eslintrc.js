@@ -1,7 +1,6 @@
 module.exports = {
   extends: [
     'expo',
-    '@typescript-eslint/recommended',
   ],
   parser: '@typescript-eslint/parser',
   plugins: ['@typescript-eslint', 'react', 'react-hooks', 'react-native'],

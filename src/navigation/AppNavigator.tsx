@@ -98,3 +98,4 @@ const AppNavigator = () => {
 };
 
 export default AppNavigator;
+export { MainTabParamList, RootStackParamList };

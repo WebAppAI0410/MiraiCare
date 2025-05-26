@@ -10,13 +10,14 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
-import { Colors, FontSizes, TouchTargets, Spacing, RiskLevel, RootStackParamList } from '../types';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { Colors, FontSizes, TouchTargets, Spacing, RiskLevel } from '../types';
+import { MainTabParamList } from '../navigation/AppNavigator';
 import i18n from '../config/i18n';
 
 const { width } = Dimensions.get('window');
 
-type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
+type HomeScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Home'>;
 
 interface RiskCardProps {
   level: RiskLevel;
