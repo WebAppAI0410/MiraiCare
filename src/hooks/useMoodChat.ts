@@ -119,7 +119,7 @@ export const useMoodChat = (): UseMoodChatResult => {
       
       // 初期メッセージを追加
       const welcomeMessage: ChatMessage = {
-        id: `${Date.now()}_welcome`,
+        id: moodAnalysisService.generateId(),
         type: 'ai',
         content: 'こんにちは！今日もあなたの気持ちをお聞かせください。3つの簡単な質問をさせていただきますね。',
         timestamp: new Date(),
@@ -152,7 +152,7 @@ export const useMoodChat = (): UseMoodChatResult => {
 
     const question = questions[questionIndex];
     const questionMessage: ChatMessage = {
-      id: `${Date.now()}_question_${questionIndex}`,
+      id: moodAnalysisService.generateId(),
       type: 'ai',
       content: question,
       timestamp: new Date(),
@@ -173,7 +173,7 @@ export const useMoodChat = (): UseMoodChatResult => {
 
       // ユーザーメッセージを追加
       const userMessage: ChatMessage = {
-        id: `${Date.now()}_user`,
+        id: moodAnalysisService.generateId(),
         type: 'user',
         content: content.trim(),
         timestamp: new Date(),
@@ -230,7 +230,7 @@ export const useMoodChat = (): UseMoodChatResult => {
 
       // 分析結果メッセージを作成
       const analysisMessage: ChatMessage = {
-        id: `${Date.now()}_analysis`,
+        id: moodAnalysisService.generateId(),
         type: 'ai',
         content: `分析完了しました！\n\n今日のムード: ${analysisResult.moodLabel}\n強度: ${analysisResult.intensity}/5\n\n${analysisResult.suggestion}`,
         timestamp: new Date(),
@@ -266,7 +266,7 @@ export const useMoodChat = (): UseMoodChatResult => {
       
       // エラーメッセージを表示
       const errorAIMessage: ChatMessage = {
-        id: `${Date.now()}_error`,
+        id: moodAnalysisService.generateId(),
         type: 'ai',
         content: 'ごめんなさい、分析中にエラーが発生しました。でも、今日もお話しできて嬉しかったです。',
         timestamp: new Date(),
