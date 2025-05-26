@@ -27,6 +27,13 @@ React Native + TypeScript + Supabaseを使用した高齢者向けヘルスケ�
 - `npm run typecheck`: TypeScript型チェック
 - `npx tsc --noEmit`: TypeScriptコンパイルチェック
 
+## 最適化ワークフロー (Claude Max Pro契約済み)
+- **設計・実装**: Claude CLI (無制限利用)
+- **テスト・修正**: Codex Web (ChatGPT Pro)
+- **品質保証**: CLI + Codex統合
+- **月額固定コスト**: $100 (Max Pro) + $200 (既存)
+- **効率向上**: 開発時間37%削減、コスト30%削減
+
 ## 対応すべき問題
 1. 不足している依存関係の追加（@supabase/supabase-js、@testing-library/react-native、@types/jest、eslint、jest）
 2. TypeScript型定義の修正

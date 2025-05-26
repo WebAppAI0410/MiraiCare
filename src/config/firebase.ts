@@ -5,6 +5,23 @@ import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import Constants from 'expo-constants';
 
+// Firestore関数をインポート
+import { 
+  collection, 
+  doc, 
+  addDoc, 
+  getDoc, 
+  updateDoc, 
+  onSnapshot, 
+  query, 
+  where, 
+  orderBy, 
+  limit,
+  serverTimestamp,
+  DocumentData,
+  QuerySnapshot
+} from 'firebase/firestore';
+
 // Firebase設定（環境変数から取得）
 const firebaseConfig = {
   apiKey: Constants.expoConfig?.extra?.firebaseApiKey,
@@ -94,23 +111,6 @@ export const COLLECTIONS = {
   REMINDERS: 'reminders',
   BADGES: 'badges',
 } as const;
-
-// Firestore関数をインポート
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  getDoc, 
-  updateDoc, 
-  onSnapshot, 
-  query, 
-  where, 
-  orderBy, 
-  limit,
-  serverTimestamp,
-  DocumentData,
-  QuerySnapshot
-} from 'firebase/firestore';
 
 // ヘルパー関数
 export const createUserDocument = async (userData: Partial<User>) => {
