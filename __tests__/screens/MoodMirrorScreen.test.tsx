@@ -8,7 +8,13 @@ jest.spyOn(Alert, 'alert');
 
 describe('MoodMirrorScreen', () => {
   beforeEach(() => {
+    jest.useFakeTimers();
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
   });
 
   it('画面が正常にレンダリングされる', () => {
@@ -21,6 +27,7 @@ describe('MoodMirrorScreen', () => {
 
   it('質問が順番に表示される', () => {
     const { getByText } = render(<MoodMirrorScreen />);
+    jest.runAllTimers();
 
     // 最初の質問が表示されることを確認
     expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
@@ -28,6 +35,7 @@ describe('MoodMirrorScreen', () => {
 
   it('気分選択ボタンが正常に動作する', () => {
     const { getByText, getByPlaceholderText } = render(<MoodMirrorScreen />);
+    jest.runAllTimers();
 
     const option = getByText('とても良い');
     fireEvent.press(option);
@@ -47,6 +55,7 @@ describe('MoodMirrorScreen', () => {
 
   it('次の質問への遷移が正常に動作する', async () => {
     const { getByText, getByPlaceholderText } = render(<MoodMirrorScreen />);
+    jest.runAllTimers();
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), '元気です');
     fireEvent.press(getByText('送信'));
@@ -60,9 +69,11 @@ describe('MoodMirrorScreen', () => {
     const { getByText, getByPlaceholderText } = render(
       <MoodMirrorScreen />
     );
+    jest.runAllTimers();
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A1');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
 
     await waitFor(() => {
       expect(getByText('最近、心配していることはありますか？')).toBeTruthy();
@@ -70,6 +81,7 @@ describe('MoodMirrorScreen', () => {
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A2');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
 
     await waitFor(() => {
       expect(getByText('今日、楽しかったことを教えてください')).toBeTruthy();
@@ -77,6 +89,7 @@ describe('MoodMirrorScreen', () => {
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A3');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
 
     await waitFor(() => {
       expect(getByText(/分析完了しました！/)).toBeTruthy();
@@ -98,6 +111,7 @@ describe('MoodMirrorScreen', () => {
     const input = getByPlaceholderText('メッセージを入力...');
     fireEvent.changeText(input, 'テスト');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
 
     await waitFor(() => {
       expect(getByPlaceholderText('メッセージを入力...').props.value).toBe('');
@@ -111,14 +125,17 @@ describe('MoodMirrorScreen', () => {
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A1');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
     await waitFor(() => getByText('最近、心配していることはありますか？'));
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A2');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
     await waitFor(() => getByText('今日、楽しかったことを教えてください'));
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A3');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
 
     await waitFor(() => {
       expect(getByText(/分析完了しました！/)).toBeTruthy();
@@ -134,14 +151,17 @@ describe('MoodMirrorScreen', () => {
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A1');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
     await waitFor(() => getByText('最近、心配していることはありますか？'));
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A2');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
     await waitFor(() => getByText('今日、楽しかったことを教えてください'));
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A3');
     fireEvent.press(getByText('送信'));
+    jest.runAllTimers();
 
     await waitFor(() => {
       expect(getByText(/分析完了しました！/)).toBeTruthy();
@@ -157,7 +177,6 @@ describe('MoodMirrorScreen', () => {
   });
 
   it('ローディング状態が適切に表示される', async () => {
-    jest.useFakeTimers();
     const { getByText, getByPlaceholderText } = render(
       <MoodMirrorScreen />
     );

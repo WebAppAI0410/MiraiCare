@@ -120,16 +120,13 @@ describe('HomeScreen', () => {
     );
   });
 
-  it('ローディング状態が適切に処理される', async () => {
-    const { getByTestId, queryByTestId } = render(
+  it('ローディングインジケーターが表示されていない', () => {
+    const { queryByTestId } = render(
       <TestWrapper>
         <HomeScreen />
       </TestWrapper>
     );
 
-    // ローディングインジケーターの確認（実装に応じて調整）
-    await waitFor(() => {
-      expect(queryByTestId('loading-indicator')).toBeFalsy();
-    });
+    expect(queryByTestId('loading-indicator')).toBeNull();
   });
 });

@@ -27,44 +27,44 @@ describe('LoginScreen', () => {
   };
 
   it('画面が正常にレンダリングされる', () => {
-    const { getByText, getByPlaceholderText } = render(
+    const { getByText, getByLabelText } = render(
       <LoginScreen {...defaultProps} />
     );
 
     // 主要な要素が表示されることを確認
     expect(getByText('ログイン')).toBeTruthy();
-    expect(getByPlaceholderText('メールアドレス')).toBeTruthy();
-    expect(getByPlaceholderText('パスワード')).toBeTruthy();
+    expect(getByLabelText('メールアドレス入力')).toBeTruthy();
+    expect(getByLabelText('パスワード入力')).toBeTruthy();
   });
 
   it('メールアドレス入力が正常に動作する', () => {
-    const { getByPlaceholderText } = render(
+    const { getByLabelText } = render(
       <LoginScreen {...defaultProps} />
     );
 
-    const emailInput = getByPlaceholderText('メールアドレス');
+    const emailInput = getByLabelText('メールアドレス入力');
     fireEvent.changeText(emailInput, 'test@example.com');
 
     expect(emailInput.props.value).toBe('test@example.com');
   });
 
   it('パスワード入力が正常に動作する', () => {
-    const { getByPlaceholderText } = render(
+    const { getByLabelText } = render(
       <LoginScreen {...defaultProps} />
     );
 
-    const passwordInput = getByPlaceholderText('パスワード');
+    const passwordInput = getByLabelText('パスワード入力');
     fireEvent.changeText(passwordInput, 'password123');
 
     expect(passwordInput.props.value).toBe('password123');
   });
 
   it('空のメールアドレスでログイン時にエラーが表示される', async () => {
-    const { getByText, getByPlaceholderText } = render(
+    const { getByText, getByLabelText } = render(
       <LoginScreen {...defaultProps} />
     );
 
-    const passwordInput = getByPlaceholderText('パスワード');
+    const passwordInput = getByLabelText('パスワード入力');
     fireEvent.changeText(passwordInput, 'password123');
 
     const loginButton = getByText('ログイン');
@@ -79,11 +79,11 @@ describe('LoginScreen', () => {
   });
 
   it('空のパスワードでログイン時にエラーが表示される', async () => {
-    const { getByText, getByPlaceholderText } = render(
+    const { getByText, getByLabelText } = render(
       <LoginScreen {...defaultProps} />
     );
 
-    const emailInput = getByPlaceholderText('メールアドレス');
+    const emailInput = getByLabelText('メールアドレス入力');
     fireEvent.changeText(emailInput, 'test@example.com');
 
     const loginButton = getByText('ログイン');
@@ -98,7 +98,7 @@ describe('LoginScreen', () => {
   });
 
   it('正しい入力でログインが成功する', async () => {
-    const { getByText, getByPlaceholderText } = render(
+    const { getByText, getByLabelText } = render(
       <LoginScreen {...defaultProps} />
     );
 
@@ -107,8 +107,8 @@ describe('LoginScreen', () => {
       user: { id: '1', email: 'test@example.com' },
     });
 
-    const emailInput = getByPlaceholderText('メールアドレス');
-    const passwordInput = getByPlaceholderText('パスワード');
+    const emailInput = getByLabelText('メールアドレス入力');
+    const passwordInput = getByLabelText('パスワード入力');
     
     fireEvent.changeText(emailInput, 'test@example.com');
     fireEvent.changeText(passwordInput, 'password123');
@@ -133,7 +133,7 @@ describe('LoginScreen', () => {
   });
 
   it('ログインエラー時に適切なエラーメッセージが表示される', async () => {
-    const { getByText, getByPlaceholderText } = render(
+    const { getByText, getByLabelText } = render(
       <LoginScreen {...defaultProps} />
     );
 
@@ -142,8 +142,8 @@ describe('LoginScreen', () => {
       new Error('Invalid credentials')
     );
 
-    const emailInput = getByPlaceholderText('メールアドレス');
-    const passwordInput = getByPlaceholderText('パスワード');
+    const emailInput = getByLabelText('メールアドレス入力');
+    const passwordInput = getByLabelText('パスワード入力');
     
     fireEvent.changeText(emailInput, 'test@example.com');
     fireEvent.changeText(passwordInput, 'wrongpassword');
@@ -160,15 +160,14 @@ describe('LoginScreen', () => {
   });
 
   it('パスワード表示切り替えが正常に動作する', () => {
-    const { getByTestId } = render(
+    const { getByText } = render(
       <LoginScreen {...defaultProps} />
     );
 
-    const toggleButton = getByTestId('password-toggle');
+    const toggleButton = getByText('表示');
     fireEvent.press(toggleButton);
 
-    // パスワード表示状態が切り替わることを確認
-    // （実装に応じてテストIDやアクセシビリティラベルを調整）
+    expect(getByText('隠す')).toBeTruthy();
   });
 
   it('サインアップ画面への切り替えが正常に動作する', () => {
@@ -176,14 +175,14 @@ describe('LoginScreen', () => {
       <LoginScreen {...defaultProps} />
     );
 
-    const signupButton = getByText('新規登録');
+    const signupButton = getByText('新規アカウント作成');
     fireEvent.press(signupButton);
 
     expect(mockOnSwitchToSignup).toHaveBeenCalled();
   });
 
   it('ローディング状態が適切に表示される', async () => {
-    const { getByText, getByPlaceholderText, getByTestId } = render(
+    const { getByText, getByLabelText, getByA11yRole } = render(
       <LoginScreen {...defaultProps} />
     );
 
@@ -192,8 +191,8 @@ describe('LoginScreen', () => {
       () => new Promise(resolve => setTimeout(resolve, 1000))
     );
 
-    const emailInput = getByPlaceholderText('メールアドレス');
-    const passwordInput = getByPlaceholderText('パスワード');
+    const emailInput = getByLabelText('メールアドレス入力');
+    const passwordInput = getByLabelText('パスワード入力');
     
     fireEvent.changeText(emailInput, 'test@example.com');
     fireEvent.changeText(passwordInput, 'password123');
@@ -202,7 +201,7 @@ describe('LoginScreen', () => {
     fireEvent.press(loginButton);
 
     // ローディングインジケーターが表示されることを確認
-    expect(getByTestId('login-loading')).toBeTruthy();
+    expect(getByA11yRole('progressbar')).toBeTruthy();
   });
 
   it('アクセシビリティラベルが適切に設定されている', () => {
