@@ -19,8 +19,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # workflow_runイベントから正しいPRのSHAを取得するには工夫が必要な場合がある
-          # ここでは、イベントをトリガーしたブランチの最新をチェックアウトすることを試みる
           ref: ${{ github.event.workflow_run.head_branch }}
 
       - name: Setup Node.js
@@ -32,56 +30,73 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
 
-      - name: Get failure logs from RN Unit CI
-        id: get_logs
+      - name: Get failure information
+        id: get_failure_info
         uses: actions/github-script@v7
+        env: # env を使って必要な値を渡す
+          TRIGGERING_RUN_ID: ${{ github.event.workflow_run.id }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          PULL_REQUESTS_JSON: ${{ toJson(github.event.workflow_run.pull_requests) || '[]' }}
         with:
           script: |
-            const run_id = ${{ github.event.workflow_run.id }};
+            const triggering_run_id = process.env.TRIGGERING_RUN_ID;
+            const head_branch = process.env.HEAD_BRANCH; 
+            let pull_requests = [];
+            try {
+              pull_requests = JSON.parse(process.env.PULL_REQUESTS_JSON);
+            } catch (e) {
+              console.error("Error parsing PULL_REQUESTS_JSON:", e);
+              console.log("PULL_REQUESTS_JSON was:", process.env.PULL_REQUESTS_JSON);
+            }
+
+            core.setOutput('triggering_run_id', triggering_run_id);
+            console.log(`Triggering workflow run ID: ${triggering_run_id}`);
+
             const jobs = await github.rest.actions.listJobsForWorkflowRun({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              run_id: run_id,
+              run_id: triggering_run_id,
             });
-            // 'test' というジョブ名、または 'RN Unit CI' の実際のジョブ名に合わせる
+            
             const failedJob = jobs.data.jobs.find(job => job.conclusion === 'failure' && (job.name.includes('test') || job.name.includes('Test'))); 
+            
             if (!failedJob) {
-              console.log('Failed job not found.');
+              core.setFailed('Failed CI job not found in the triggering workflow run.');
               return;
             }
-            // ジョブログを取得 (非常に長くなる可能性あり、Claudeの入力限界に注意)
-            // ここではエラー箇所を特定するロジックが必要になるが、一旦ジョブ名を渡す
-            // 実際にはエラーログのサマリや主要部分を抽出する処理が望ましい
             core.setOutput('failed_job_name', failedJob.name);
             core.setOutput('failed_job_id', failedJob.id);
-            // 関連PR番号を取得
-            const prs = github.event.workflow_run.pull_requests;
-            if (prs && prs.length > 0) {
-              core.setOutput('pr_number', prs[0].number);
+            console.log(`Failed Job Name: ${failedJob.name}, ID: ${failedJob.id}`);
+
+            let prNumber = null;
+            if (pull_requests && pull_requests.length > 0) {
+              prNumber = pull_requests[0].number;
+              core.setOutput('pr_number', prNumber);
+              console.log(`Associated PR Number: ${prNumber}`);
+            } else {
+              console.log('No associated PR found for this workflow run. Proceeding without PR context for autofix.');
             }
 
-
       - name: Claude Code Autofix
-        if: steps.get_logs.outputs.pr_number # PRに関連する場合のみ実行
+        if: steps.get_failure_info.outputs.failed_job_id # 失敗したジョブIDがあれば実行
         uses: anthropics/claude-code-action@beta 
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # trigger_phrase: は不要
           timeout_minutes: "15"
           allowed_tools: "Edit,View,GrepTool,Bash(npm test)"
           custom_instructions: |
-            このプルリクエスト (#${{ steps.get_logs.outputs.pr_number }}) のユニットテスト (ジョブ名: `${{ steps.get_logs.outputs.failed_job_name }}`) が失敗しました。
+            CI (ジョブ名: `${{ steps.get_failure_info.outputs.failed_job_name }}`) が失敗しました。
             関連するエラーログを分析し、問題を特定してコードを修正してください。
-            修正案はプルリクエストへのコメントとして、具体的な変更箇所と理由を添えて提案してください。
-            修正後は `npm test` を実行して、テストが成功することを確認してください。
+            修正はブランチ `${{ github.event.workflow_run.head_branch }}` に直接コミットしてください。
+            コミットメッセージは「Fix: Apply Claude auto-fix for CI failure」としてください。
+            修正後は `npm test` を実行し、テストが成功することを確認してください。
 
-            **重要:** 修正はPull Requestのブランチ (${{ github.event.workflow_run.head_branch }}) に対して行うようにしてください。
+            **関連情報:**
+            - トリガーとなったワークフロー実行ID: ${{ steps.get_failure_info.outputs.triggering_run_id }}
+            - 失敗したジョブID: ${{ steps.get_failure_info.outputs.failed_job_id }}
+            - 対象ブランチ: ${{ github.event.workflow_run.head_branch }}
+            ${{ steps.get_failure_info.outputs.pr_number && format('- 関連プルリクエスト: #{0}', steps.get_failure_info.outputs.pr_number) || '- プルリクエスト情報なし' }}
             
-            以下は関連する情報です:
-            - Failed Workflow Run ID: ${{ github.event.workflow_run.id }}
-            - Failed Job ID: ${{ steps.get_logs.outputs.failed_job_id }}
-            - Target Branch: ${{ github.event.workflow_run.head_branch }}
-          # model_name: claude-3-opus-20240229 # または claude-3-sonnet-20240229 # Removed as it's not a valid input
-          # comment_on_pr: true # (actionのデフォルト動作でPRコメントされるはず)
-          # github_pr_id: ${{ steps.get_logs.outputs.pr_number }} # (action側で自動認識するはず) 
+            もしプルリクエストが存在する場合 (#${{ steps.get_failure_info.outputs.pr_number }}) は、修正内容についてコメントもお願いします。
+            プルリクエストが存在しない場合は、ブランチへの直接コミットのみを行ってください。 

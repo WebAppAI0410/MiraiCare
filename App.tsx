@@ -9,6 +9,9 @@ import PromptLoginScreen from './src/screens/PromptLoginScreen';
 import { subscribeToAuthState } from './src/services/authService';
 import { User, Colors, AppState } from './src/types';
 
+// INTENTIONAL SYNTAX ERROR FOR TESTING CI FAILURE
+const intentionallyBroken = ;
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
