@@ -93,6 +93,9 @@ export const COLLECTIONS = {
   MOODS: 'moods',
   REMINDERS: 'reminders',
   BADGES: 'badges',
+  // TDD Phase 2で追加されたコレクション
+  USER_PROFILES: 'userProfiles',
+  VITAL_DATA: 'vitalData',
 } as const;
 
 // Firestore関数をインポート
