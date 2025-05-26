@@ -87,6 +87,7 @@ describe('FirestoreService', () => {
       it('ユーザープロファイルを取得できる', async () => {
         // Given: モックの設定
         const mockDocSnap = {
+          id: 'user123',
           exists: () => true,
           data: () => ({
             name: '田中太郎',
@@ -247,7 +248,10 @@ describe('FirestoreService', () => {
         const mockDocSnap = {
           exists: () => true,
           id: 'vital123',
-          data: () => mockVitalData,
+          data: () => ({
+            ...mockVitalData,
+            createdAt: { toDate: () => new Date('2024-01-01') }
+          }),
         };
         (firestore.getDoc as jest.Mock).mockResolvedValue(mockDocSnap);
         (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
@@ -256,7 +260,11 @@ describe('FirestoreService', () => {
         const result = await getVitalData('vital123');
 
         // Then: 正しく取得される
-        expect(result).toEqual({ id: 'vital123', ...mockVitalData });
+        expect(result).toEqual({ 
+          id: 'vital123', 
+          ...mockVitalData,
+          createdAt: new Date('2024-01-01')
+        });
         expect(firestore.doc).toHaveBeenCalledWith({}, 'vitalData', 'vital123');
         expect(firestore.getDoc).toHaveBeenCalledWith('mock-doc-ref');
       });
@@ -283,11 +291,19 @@ describe('FirestoreService', () => {
         const mockDocs = [
           {
             id: 'vital1',
-            data: () => ({ ...mockVitalData, date: '2024-01-01' }),
+            data: () => ({ 
+              ...mockVitalData, 
+              date: '2024-01-01',
+              createdAt: { toDate: () => new Date('2024-01-01') }
+            }),
           },
           {
             id: 'vital2', 
-            data: () => ({ ...mockVitalData, date: '2024-01-02' }),
+            data: () => ({ 
+              ...mockVitalData, 
+              date: '2024-01-02',
+              createdAt: { toDate: () => new Date('2024-01-02') }
+            }),
           },
         ];
         const mockQuerySnapshot = {
@@ -311,6 +327,7 @@ describe('FirestoreService', () => {
           id: 'vital1',
           ...mockVitalData,
           date: '2024-01-01',
+          createdAt: new Date('2024-01-01')
         });
         expect(firestore.query).toHaveBeenCalled();
         expect(firestore.where).toHaveBeenCalledWith('userId', '==', 'user123');
