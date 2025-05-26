@@ -1,0 +1,41 @@
+{
+  "name": "MiraiCare React Native Project",
+  "description": "高齢者向けヘルスケアSaaSプロジェクト (React Native + TypeScript + Firebase)",
+  "setup_script": ".codex/setup.sh",
+  "environment": {
+    "NODE_ENV": "development",
+    "npm_config_audit": "false",
+    "npm_config_fund": "false"
+  },
+  "dependencies": {
+    "install_command": "npm install --no-audit --prefer-offline",
+    "required_packages": [
+      "jest",
+      "react-native-testing-library", 
+      "@testing-library/react-native",
+      "eslint",
+      "typescript",
+      "@types/jest",
+      "@types/react",
+      "@types/react-native"
+    ]
+  },
+  "scripts": {
+    "test": "npm run test:screens",
+    "test:unit": "jest --testPathPattern=__tests__/unit",
+    "test:screens": "jest --testPathPattern=__tests__/screens",
+    "test:services": "jest --testPathPattern=__tests__/services",
+    "test:integration": "jest --testPathPattern=__tests__/integration",
+    "typecheck": "npx tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix"
+  },
+  "project_type": "react-native",
+  "package_manager": "npm",
+  "init_commands": [
+    "npm install --no-audit --prefer-offline",
+    "npm run typecheck",
+    "npm run lint",
+    "npm run test:unit"
+  ]
+}
