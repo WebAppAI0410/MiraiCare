@@ -1,0 +1,141 @@
+name: Claude Unified
+
+on:
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      action_type:
+        description: '実行アクション'
+        required: true
+        default: 'quality_check'
+        type: choice
+        options:
+          - autofix
+          - quality_check
+
+jobs:
+  # 手動コメント対応（@claudeメンション）
+  manual_request:
+    if: |
+      github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') ||
+      github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: claude-manual-${{ github.event.issue.number || github.event.pull_request.number }}-${{ github.event.comment.id }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Claude Response
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          trigger_phrase: "@claude"
+          timeout_minutes: "15"
+          # 最小限のツールセットに制限
+          allowed_tools: "View,Edit,GrepTool,Bash(npm test),Bash(npm run lint)"
+          custom_instructions: |
+            MiraiCare（React Native + TypeScript + Supabase）プロジェクトのアシスタントです。
+            メンションされたコメントの指示に従ってタスクを実行してください。
+            日本語で応答し、必要最小限の操作で効率的に作業してください。
+
+  # CodeRabbitレビューへの応答（軽量版）
+  coderabbit_feedback:
+    if: |
+      github.event_name == 'pull_request_review' && 
+      github.event.review.user.login == 'coderabbitai[bot]' && 
+      (contains(github.event.review.body, '**Suggestion:**') || contains(github.event.review.body, '**提案:**'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      # チェックアウト不要 - コメント投稿のみ
+      - name: Analyze CodeRabbit Review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reviewBody = `${{ github.event.review.body }}`;
+            const prNumber = ${{ github.event.pull_request.number }};
+            
+            // 簡単な分析コメントを投稿（Claudeを使わずコスト削減）
+            const comment = `## CodeRabbitレビュー分析
+
+            CodeRabbitから以下の提案がありました：
+
+            ${reviewBody.substring(0, 500)}...
+
+            開発者の皆様、このレビュー内容をご確認ください。詳細な分析が必要な場合は @claude とメンションしてください。`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
+
+  # 管理者用ツール
+  admin_tools:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: github.event.inputs.action_type != 'quality_check'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: github.event.inputs.action_type != 'quality_check'
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Quality Check Only
+        if: github.event.inputs.action_type == 'quality_check'
+        run: |
+          echo "=== 軽量品質チェック ==="
+          echo "🔍 基本的なファイル構造チェック"
+          ls -la src/ || echo "❌ srcディレクトリが見つかりません"
+          echo "🔍 package.jsonの存在確認"
+          test -f package.json && echo "✅ package.json存在" || echo "❌ package.json不在"
+          echo "🔍 TypeScript設定確認"
+          test -f tsconfig.json && echo "✅ tsconfig.json存在" || echo "❌ tsconfig.json不在"
+
+      - name: Claude Autofix
+        if: github.event.inputs.action_type == 'autofix'
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          timeout_minutes: "10"
+          allowed_tools: "Edit,View,Bash(npm test)"
+          custom_instructions: |
+            管理者からの自動修正リクエストです。
+            プロジェクトの品質問題を特定し、修正してください。
+            修正後は必ずテストを実行して動作確認してください。 
