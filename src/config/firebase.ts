@@ -89,7 +89,9 @@ export interface Badge {
 // Firestore コレクション名
 export const COLLECTIONS = {
   USERS: 'users',
+  USER_PROFILES: 'user_profiles', // TDD Phase 2: ユーザープロファイル専用
   VITALS: 'vitals',
+  VITAL_DATA: 'vital_data', // TDD Phase 2: バイタルデータ専用
   MOODS: 'moods',
   REMINDERS: 'reminders',
   BADGES: 'badges',
