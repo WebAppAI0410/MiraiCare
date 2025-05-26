@@ -241,6 +241,9 @@ describe('MoodMirrorScreen', () => {
 
     expect(getByText('考え中...')).toBeTruthy();
     
+    // 2000ms待機後に次の質問が表示される
+    jest.advanceTimersByTime(2000);
+    
     await waitFor(() => {
       expect(getByText('最近、心配していることはありますか？')).toBeTruthy();
     });

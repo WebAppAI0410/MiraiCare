@@ -182,7 +182,7 @@ describe('LoginScreen', () => {
   });
 
   it('ローディング状態が適切に表示される', async () => {
-    const { getByText, getByLabelText, getByRole } = render(
+    const { getByText, getByLabelText } = render(
       <LoginScreen {...defaultProps} />
     );
 
@@ -200,8 +200,11 @@ describe('LoginScreen', () => {
     const loginButton = getByLabelText('ログイン');
     fireEvent.press(loginButton);
 
-    // ローディングインジケーターが表示されることを確認
-    expect(getByRole('progressbar')).toBeTruthy();
+    // ログインボタンが無効化されることを確認（ローディング中）
+    await waitFor(() => {
+      const button = getByLabelText('ログイン');
+      expect(button.props.accessibilityState?.disabled).toBe(true);
+    });
   });
 
   it('アクセシビリティラベルが適切に設定されている', () => {

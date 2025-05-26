@@ -10,8 +10,9 @@ import {
   getUserVitalHistory 
 } from '../../src/services/firestoreService';
 import { UserProfile, VitalData } from '../../src/types/userData';
+import * as firestore from 'firebase/firestore';
 
-// モックの設定
+// Firebaseモックの設定
 jest.mock('../../src/config/firebase', () => ({
   db: {},
   COLLECTIONS: {
@@ -25,32 +26,8 @@ jest.mock('../../src/config/firebase', () => ({
   },
 }));
 
-// Firestore関数のモック
-const mockAddDoc = jest.fn();
-const mockGetDoc = jest.fn();
-const mockUpdateDoc = jest.fn();
-const mockDeleteDoc = jest.fn();
-const mockCollection = jest.fn();
-const mockDoc = jest.fn();
-const mockQuery = jest.fn();
-const mockWhere = jest.fn();
-const mockOrderBy = jest.fn();
-const mockGetDocs = jest.fn();
-const mockServerTimestamp = jest.fn(() => new Date());
-
-jest.mock('firebase/firestore', () => ({
-  addDoc: (collection: any, data: any) => mockAddDoc(collection, data),
-  getDoc: (docRef: any) => mockGetDoc(docRef),
-  updateDoc: (docRef: any, data: any) => mockUpdateDoc(docRef, data),
-  deleteDoc: (docRef: any) => mockDeleteDoc(docRef),
-  collection: (db: any, path: string) => mockCollection(db, path),
-  doc: (db: any, path: string, id: string) => mockDoc(db, path, id),
-  query: (...args: any[]) => mockQuery(...args),
-  where: (field: string, op: string, value: any) => mockWhere(field, op, value),
-  orderBy: (field: string, direction?: string) => mockOrderBy(field, direction),
-  getDocs: (query: any) => mockGetDocs(query),
-  serverTimestamp: () => mockServerTimestamp(),
-}));
+// Firestoreをモック
+jest.mock('firebase/firestore');
 
 describe('FirestoreService', () => {
   beforeEach(() => {
@@ -68,8 +45,11 @@ describe('FirestoreService', () => {
 
     describe('createUserProfile', () => {
       it('新しいユーザープロファイルを作成できる', async () => {
-        // Given: モックが成功を返すように設定
-        mockAddDoc.mockResolvedValue({ id: 'user123' });
+        // Given: モックの設定
+        const mockDocRef = { id: 'user123' };
+        (firestore.addDoc as jest.Mock).mockResolvedValue(mockDocRef);
+        (firestore.collection as jest.Mock).mockReturnValue('mock-collection');
+        (firestore.serverTimestamp as jest.Mock).mockReturnValue('timestamp');
 
         // When: ユーザープロファイルを作成
         const result = await createUserProfile({
@@ -79,20 +59,22 @@ describe('FirestoreService', () => {
 
         // Then: 正しく作成される
         expect(result).toBe('user123');
-        expect(mockAddDoc).toHaveBeenCalledWith(
-          expect.anything(),
+        expect(firestore.collection).toHaveBeenCalledWith({}, 'userProfiles');
+        expect(firestore.addDoc).toHaveBeenCalledWith(
+          'mock-collection',
           expect.objectContaining({
             name: '田中太郎',
             age: 75,
-            createdAt: expect.any(Object), // serverTimestampはObjectを返す
-            updatedAt: expect.any(Object), // serverTimestampはObjectを返す
+            createdAt: 'timestamp',
+            updatedAt: 'timestamp',
           })
         );
       });
 
       it('Firestoreエラー時に適切なエラーを投げる', async () => {
         // Given: Firestoreエラーを設定
-        mockAddDoc.mockRejectedValue(new Error('Firestore error'));
+        (firestore.addDoc as jest.Mock).mockRejectedValue(new Error('Firestore error'));
+        (firestore.collection as jest.Mock).mockReturnValue('mock-collection');
 
         // When & Then: エラーが投げられる
         await expect(createUserProfile({ name: '田中太郎', age: 75 }))
@@ -103,31 +85,35 @@ describe('FirestoreService', () => {
 
     describe('getUserProfile', () => {
       it('ユーザープロファイルを取得できる', async () => {
-        // Given: モックがデータを返すように設定
-        mockGetDoc.mockResolvedValue({
+        // Given: モックの設定
+        const mockDocSnap = {
           exists: () => true,
-          id: 'user123',
           data: () => ({
             name: '田中太郎',
             age: 75,
             createdAt: new Date('2024-01-01'),
             updatedAt: new Date('2024-01-01'),
           }),
-        });
+        };
+        (firestore.getDoc as jest.Mock).mockResolvedValue(mockDocSnap);
+        (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
 
         // When: ユーザープロファイルを取得
         const result = await getUserProfile('user123');
 
         // Then: 正しく取得される
         expect(result).toEqual(mockUserProfile);
-        expect(mockGetDoc).toHaveBeenCalled();
+        expect(firestore.doc).toHaveBeenCalledWith({}, 'userProfiles', 'user123');
+        expect(firestore.getDoc).toHaveBeenCalledWith('mock-doc-ref');
       });
 
       it('存在しないユーザーの場合nullを返す', async () => {
         // Given: ドキュメントが存在しない
-        mockGetDoc.mockResolvedValue({
+        const mockDocSnap = {
           exists: () => false,
-        });
+        };
+        (firestore.getDoc as jest.Mock).mockResolvedValue(mockDocSnap);
+        (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
 
         // When: 存在しないユーザーを取得
         const result = await getUserProfile('nonexistent');
@@ -135,38 +121,79 @@ describe('FirestoreService', () => {
         // Then: nullが返される
         expect(result).toBeNull();
       });
+
+      it('Firestoreエラー時に適切なエラーを投げる', async () => {
+        // Given: Firestoreエラーを設定
+        (firestore.getDoc as jest.Mock).mockRejectedValue(new Error('Firestore error'));
+        (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
+
+        // When & Then: エラーが投げられる
+        await expect(getUserProfile('user123'))
+          .rejects
+          .toThrow('ユーザープロファイルの取得に失敗しました');
+      });
     });
 
     describe('updateUserProfile', () => {
       it('ユーザープロファイルを更新できる', async () => {
-        // Given: モックが成功を返すように設定
-        mockUpdateDoc.mockResolvedValue(undefined);
+        // Given: モックの設定
+        (firestore.updateDoc as jest.Mock).mockResolvedValue(undefined);
+        (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
+        (firestore.serverTimestamp as jest.Mock).mockReturnValue('timestamp');
 
         // When: ユーザープロファイルを更新
-        await updateUserProfile('user123', { name: '田中次郎', age: 76 });
+        await updateUserProfile('user123', {
+          name: '田中次郎',
+          age: 76,
+        });
 
         // Then: 正しく更新される
-        expect(mockUpdateDoc).toHaveBeenCalledWith(
-          expect.anything(),
+        expect(firestore.doc).toHaveBeenCalledWith({}, 'userProfiles', 'user123');
+        expect(firestore.updateDoc).toHaveBeenCalledWith(
+          'mock-doc-ref',
           expect.objectContaining({
             name: '田中次郎',
             age: 76,
-            updatedAt: expect.any(Date),
+            updatedAt: 'timestamp',
           })
         );
+      });
+
+      it('Firestoreエラー時に適切なエラーを投げる', async () => {
+        // Given: Firestoreエラーを設定
+        (firestore.updateDoc as jest.Mock).mockRejectedValue(new Error('Firestore error'));
+        (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
+
+        // When & Then: エラーが投げられる
+        await expect(updateUserProfile('user123', { name: '田中次郎' }))
+          .rejects
+          .toThrow('ユーザープロファイルの更新に失敗しました');
       });
     });
 
     describe('deleteUserProfile', () => {
       it('ユーザープロファイルを削除できる', async () => {
-        // Given: モックが成功を返すように設定
-        mockDeleteDoc.mockResolvedValue(undefined);
+        // Given: モックの設定
+        (firestore.deleteDoc as jest.Mock).mockResolvedValue(undefined);
+        (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
 
         // When: ユーザープロファイルを削除
         await deleteUserProfile('user123');
 
         // Then: 正しく削除される
-        expect(mockDeleteDoc).toHaveBeenCalled();
+        expect(firestore.doc).toHaveBeenCalledWith({}, 'userProfiles', 'user123');
+        expect(firestore.deleteDoc).toHaveBeenCalledWith('mock-doc-ref');
+      });
+
+      it('Firestoreエラー時に適切なエラーを投げる', async () => {
+        // Given: Firestoreエラーを設定
+        (firestore.deleteDoc as jest.Mock).mockRejectedValue(new Error('Firestore error'));
+        (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
+
+        // When & Then: エラーが投げられる
+        await expect(deleteUserProfile('user123'))
+          .rejects
+          .toThrow('ユーザープロファイルの削除に失敗しました');
       });
     });
   });
@@ -174,54 +201,85 @@ describe('FirestoreService', () => {
   describe('VitalData関連', () => {
     const mockVitalData: VitalData = {
       userId: 'user123',
-      steps: 5000,
       date: '2024-01-01',
+      steps: 5000,
       timestamp: Date.now(),
     };
 
     describe('saveVitalData', () => {
       it('バイタルデータを保存できる', async () => {
-        // Given: モックが成功を返すように設定
-        mockAddDoc.mockResolvedValue({ id: 'vital123' });
+        // Given: モックの設定
+        const mockDocRef = { id: 'vital123' };
+        (firestore.addDoc as jest.Mock).mockResolvedValue(mockDocRef);
+        (firestore.collection as jest.Mock).mockReturnValue('mock-collection');
+        (firestore.serverTimestamp as jest.Mock).mockReturnValue('timestamp');
 
         // When: バイタルデータを保存
         const result = await saveVitalData(mockVitalData);
 
         // Then: 正しく保存される
         expect(result).toBe('vital123');
-        expect(mockAddDoc).toHaveBeenCalledWith(
-          expect.anything(),
+        expect(firestore.collection).toHaveBeenCalledWith({}, 'vitalData');
+        expect(firestore.addDoc).toHaveBeenCalledWith(
+          'mock-collection',
           expect.objectContaining({
             ...mockVitalData,
-            createdAt: expect.any(Date),
+            createdAt: 'timestamp',
           })
         );
+      });
+
+      it('Firestoreエラー時に適切なエラーを投げる', async () => {
+        // Given: Firestoreエラーを設定
+        (firestore.addDoc as jest.Mock).mockRejectedValue(new Error('Firestore error'));
+        (firestore.collection as jest.Mock).mockReturnValue('mock-collection');
+
+        // When & Then: エラーが投げられる
+        await expect(saveVitalData(mockVitalData))
+          .rejects
+          .toThrow('バイタルデータの保存に失敗しました');
       });
     });
 
     describe('getVitalData', () => {
       it('バイタルデータを取得できる', async () => {
-        // Given: モックがデータを返すように設定
-        mockGetDoc.mockResolvedValue({
+        // Given: モックの設定
+        const mockDocSnap = {
           exists: () => true,
           id: 'vital123',
-          data: () => ({
-            ...mockVitalData,
-            createdAt: new Date(),
-          }),
-        });
+          data: () => mockVitalData,
+        };
+        (firestore.getDoc as jest.Mock).mockResolvedValue(mockDocSnap);
+        (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
 
         // When: バイタルデータを取得
         const result = await getVitalData('vital123');
 
         // Then: 正しく取得される
-        expect(result).toEqual(expect.objectContaining(mockVitalData));
+        expect(result).toEqual({ id: 'vital123', ...mockVitalData });
+        expect(firestore.doc).toHaveBeenCalledWith({}, 'vitalData', 'vital123');
+        expect(firestore.getDoc).toHaveBeenCalledWith('mock-doc-ref');
+      });
+
+      it('存在しないデータの場合nullを返す', async () => {
+        // Given: ドキュメントが存在しない
+        const mockDocSnap = {
+          exists: () => false,
+        };
+        (firestore.getDoc as jest.Mock).mockResolvedValue(mockDocSnap);
+        (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
+
+        // When: 存在しないデータを取得
+        const result = await getVitalData('nonexistent');
+
+        // Then: nullが返される
+        expect(result).toBeNull();
       });
     });
 
     describe('getUserVitalHistory', () => {
       it('ユーザーのバイタルデータ履歴を取得できる', async () => {
-        // Given: モックが履歴データを返すように設定
+        // Given: モックの設定
         const mockDocs = [
           {
             id: 'vital1',
@@ -232,18 +290,48 @@ describe('FirestoreService', () => {
             data: () => ({ ...mockVitalData, date: '2024-01-02' }),
           },
         ];
-        
-        mockGetDocs.mockResolvedValue({
+        const mockQuerySnapshot = {
           docs: mockDocs,
-        });
+          empty: false,
+          size: 2,
+        };
+        (firestore.getDocs as jest.Mock).mockResolvedValue(mockQuerySnapshot);
+        (firestore.collection as jest.Mock).mockReturnValue('mock-collection');
+        (firestore.query as jest.Mock).mockReturnValue('mock-query');
+        (firestore.where as jest.Mock).mockReturnValue('mock-where');
+        (firestore.orderBy as jest.Mock).mockReturnValue('mock-orderby');
+        (firestore.limit as jest.Mock).mockReturnValue('mock-limit');
 
-        // When: バイタルデータ履歴を取得
-        const result = await getUserVitalHistory('user123', 7); // 7日間
+        // When: 履歴を取得
+        const result = await getUserVitalHistory('user123', 30);
 
         // Then: 正しく取得される
         expect(result).toHaveLength(2);
-        expect(result[0]).toEqual(expect.objectContaining({ id: 'vital1' }));
-        expect(result[1]).toEqual(expect.objectContaining({ id: 'vital2' }));
+        expect(result[0]).toEqual({
+          id: 'vital1',
+          ...mockVitalData,
+          date: '2024-01-01',
+        });
+        expect(firestore.query).toHaveBeenCalled();
+        expect(firestore.where).toHaveBeenCalledWith('userId', '==', 'user123');
+      });
+
+      it('データがない場合は空配列を返す', async () => {
+        // Given: 空の結果
+        const mockQuerySnapshot = {
+          docs: [],
+          empty: true,
+          size: 0,
+        };
+        (firestore.getDocs as jest.Mock).mockResolvedValue(mockQuerySnapshot);
+        (firestore.collection as jest.Mock).mockReturnValue('mock-collection');
+        (firestore.query as jest.Mock).mockReturnValue('mock-query');
+
+        // When: 履歴を取得
+        const result = await getUserVitalHistory('user123', 30);
+
+        // Then: 空配列が返される
+        expect(result).toEqual([]);
       });
     });
   });

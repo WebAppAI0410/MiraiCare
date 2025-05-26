@@ -75,7 +75,7 @@ describe('authService', () => {
       // When & Then: エラーが投げられる
       await expect(signInWithEmail('test@example.com', 'wrongpassword'))
         .rejects
-        .toThrow('ログインに失敗しました');
+        .toThrow('ログインに失敗しました。メールアドレスまたはパスワードが正しくありません。');
     });
 
     it('メールアドレスが空の場合エラーが発生する', async () => {
