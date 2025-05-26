@@ -9,13 +9,11 @@ import PromptLoginScreen from './src/screens/PromptLoginScreen';
 import { subscribeToAuthState } from './src/services/authService';
 import { User, Colors, AppState } from './src/types';
 
-// INTENTIONAL SYNTAX ERROR FOR TESTING CI FAILURE
-const intentionallyBroken = ;
-
-// SECOND INTENTIONAL SYNTAX ERROR FOR TESTING AUTOFIX V2
-const anotherBrokenVariable = function( {
-  return "broken";
-};
+// SYNTAX ERRORS FIXED AFTER SUCCESSFUL CI AUTOFIX TEST
+// const intentionallyBroken = ;
+// const anotherBrokenVariable = function( {
+//   return "broken";
+// };
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
