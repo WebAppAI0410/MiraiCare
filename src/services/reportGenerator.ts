@@ -80,12 +80,12 @@ export class ReportGeneratorService {
     endDate: Date
   ): Promise<VitalData[]> {
     const { data, error } = await supabase
-      .from('vital_data')
+      .from('vitals')
       .select('*')
-      .eq('userId', userId)
-      .gte('measuredAt', startDate.toISOString())
-      .lte('measuredAt', endDate.toISOString())
-      .order('measuredAt', { ascending: true });
+      .eq('user_id', userId)
+      .gte('measured_at', startDate.toISOString())
+      .lte('measured_at', endDate.toISOString())
+      .order('measured_at', { ascending: true });
 
     if (error) {
       console.error('バイタルデータ取得エラー:', error);
@@ -108,12 +108,12 @@ export class ReportGeneratorService {
     endDate: Date
   ): Promise<MoodData[]> {
     const { data, error } = await supabase
-      .from('mood_data')
+      .from('moods')
       .select('*')
-      .eq('userId', userId)
-      .gte('createdAt', startDate.toISOString())
-      .lte('createdAt', endDate.toISOString())
-      .order('createdAt', { ascending: true });
+      .eq('user_id', userId)
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString())
+      .order('created_at', { ascending: true });
 
     if (error) {
       console.error('気分データ取得エラー:', error);
@@ -132,8 +132,8 @@ export class ReportGeneratorService {
     const { data, error } = await supabase
       .from('risk_scores')
       .select('*')
-      .eq('userId', userId)
-      .order('lastUpdated', { ascending: false })
+      .eq('user_id', userId)
+      .order('last_updated', { ascending: false })
       .limit(1)
       .single();
 

@@ -40,8 +40,8 @@ export const useFamilyStore = create<FamilyStore>((set, get) => ({
       const { data, error } = await supabase
         .from('family_members')
         .select('*')
-        .eq('userId', userId)
-        .order('createdAt', { ascending: true });
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
 
@@ -282,15 +282,15 @@ export const useLineIntegration = (userId?: string) => {
     try {
       const { data, error } = await supabase
         .from('weekly_reports')
-        .select('sentAt')
-        .eq('userId', userId)
-        .not('sentAt', 'is', null)
-        .order('sentAt', { ascending: false })
+        .select('sent_at')
+        .eq('user_id', userId)
+        .not('sent_at', 'is', null)
+        .order('sent_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (error || !data?.sentAt) return null;
-      return new Date(data.sentAt);
+      if (error || !data?.sent_at) return null;
+      return new Date(data.sent_at);
     } catch (error) {
       console.error('最終レポート日取得エラー:', error);
       return null;
