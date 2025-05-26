@@ -12,6 +12,11 @@ import { User, Colors, AppState } from './src/types';
 // INTENTIONAL SYNTAX ERROR FOR TESTING CI FAILURE
 const intentionallyBroken = ;
 
+// SECOND INTENTIONAL SYNTAX ERROR FOR TESTING AUTOFIX V2
+const anotherBrokenVariable = function( {
+  return "broken";
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
