@@ -93,10 +93,7 @@ export default function App() {
         />
       )}
       {appState === 'authenticated' && user && (
-        <AppNavigator 
-          showOnboarding={false} 
-          onOnboardingComplete={() => {}} 
-        />
+        <AppNavigator />
       )}
       {/* 認証が必要な場合のログイン画面 */}
       {!user && (appState === 'onboarding' && hasSeenOnboarding) && (
