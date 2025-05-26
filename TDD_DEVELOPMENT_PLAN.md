@@ -53,14 +53,14 @@ npm run test:services # 型エラー
 
 ## 📱 **Phase 2: データ層実装 (Week 2-3)**
 
-### **Step 2.1: Supabaseデータ連携**
+### **Step 2.1: Firebaseデータ連携**
 **目標**: ユーザーデータの永続化
 
 #### TDDサイクル 1: ユーザープロファイル
 ```typescript
 // Red: テスト作成
 describe('UserProfile Service', () => {
-  it('should save user profile to Supabase', async () => {
+  it('should save user profile to Firestore', async () => {
     const profile = { name: 'テストユーザー', age: 70 };
     const result = await userService.saveProfile(profile);
     expect(result).toBeTruthy();
@@ -68,9 +68,12 @@ describe('UserProfile Service', () => {
 });
 
 // Green: 最小実装
+import { doc, setDoc, getFirestore } from 'firebase/firestore';
+
 export const userService = {
   async saveProfile(profile: UserProfile) {
-    return await supabase.from('profiles').insert(profile);
+    const db = getFirestore();
+    return await setDoc(doc(db, 'profiles', profile.id), profile);
   }
 };
 
@@ -81,14 +84,16 @@ export const userService = {
 ```typescript
 // Red: バイタルデータテスト
 it('should save vital data with timestamp', async () => {
-  const vitalData = { steps: 5000, date: '2024-01-01' };
+  const vitalData = { steps: 5000, date: '2024-01-01', userId: 'test-user' };
   await vitalService.save(vitalData);
-  const saved = await vitalService.getByDate('2024-01-01');
+  const saved = await vitalService.getByDate('test-user', '2024-01-01');
   expect(saved.steps).toBe(5000);
 });
 
 // Green: バイタルサービス実装
-// Refactor: データ構造最適化
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+
+// Refactor: データ構造最適化・インデックス設計
 ```
 
 ### **Step 2.2: センサーデータ取得**
@@ -225,7 +230,7 @@ npm run quality:check  # ✅ エラー0個
 npm run test:coverage  # ✅ 80%以上
 
 # Phase 2完了  
-npm run test:integration  # ✅ DB接続テスト成功
+npm run test:integration  # ✅ Firestore接続テスト成功
 実機テスト: 歩数データ取得確認
 
 # Phase 3完了
