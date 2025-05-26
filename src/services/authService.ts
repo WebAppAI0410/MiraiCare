@@ -1,7 +1,7 @@
 import { 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signOut,
+  signOut as firebaseSignOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
   updateProfile,
@@ -96,13 +96,16 @@ export const signUpWithEmail = async (
 };
 
 // ログアウト
-export const signOutUser = async (): Promise<void> => {
+export const signOut = async (): Promise<void> => {
   try {
-    await signOut(auth);
+    await firebaseSignOut(auth);
   } catch (error) {
     throw handleAuthError(error as AuthError);
   }
 };
+
+// 後方互換性のためのエイリアス
+export const signOutUser = signOut;
 
 // パスワードリセット
 export const resetPassword = async (email: string): Promise<void> => {

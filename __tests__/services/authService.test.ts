@@ -39,7 +39,7 @@ describe('authService', () => {
         email: 'test@example.com',
         password: 'password123',
       });
-      expect(result.user).toEqual(mockUser);
+      expect(result).toEqual(mockUser);
     });
 
     it('無効な認証情報でエラーが発生する', async () => {
@@ -94,13 +94,13 @@ describe('authService', () => {
         error: null,
       });
 
-      const result = await signUpWithEmail('newuser@example.com', 'password123');
+      const result = await signUpWithEmail('newuser@example.com', 'password123', 'テストユーザー');
 
       expect(supabase.auth.signUp).toHaveBeenCalledWith({
         email: 'newuser@example.com',
         password: 'password123',
       });
-      expect(result.user).toEqual(mockUser);
+      expect(result).toEqual(mockUser);
     });
 
     it('既存のメールアドレスでエラーが発生する', async () => {
@@ -109,7 +109,7 @@ describe('authService', () => {
         error: { message: 'User already registered' },
       });
 
-      await expect(signUpWithEmail('existing@example.com', 'password123'))
+      await expect(signUpWithEmail('existing@example.com', 'password123', 'テストユーザー'))
         .rejects
         .toThrow('User already registered');
     });
@@ -120,7 +120,7 @@ describe('authService', () => {
         error: { message: 'Password should be at least 6 characters' },
       });
 
-      await expect(signUpWithEmail('test@example.com', '123'))
+      await expect(signUpWithEmail('test@example.com', '123', 'テストユーザー'))
         .rejects
         .toThrow('Password should be at least 6 characters');
     });
@@ -282,7 +282,7 @@ describe('authService', () => {
     });
 
     it('パスワード長が正しく検証される', async () => {
-      await expect(signUpWithEmail('test@example.com', '12345'))
+      await expect(signUpWithEmail('test@example.com', '12345', 'テストユーザー'))
         .rejects
         .toThrow('パスワードは6文字以上である必要があります');
     });

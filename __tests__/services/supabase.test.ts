@@ -233,7 +233,7 @@ describe('Supabase Configuration', () => {
         .insert({ name: 'test' });
 
       expect(data).toBeNull();
-      expect(error.code).toBe('PERMISSION_DENIED');
+      expect(error?.code).toBe('PERMISSION_DENIED');
     });
   });
 
