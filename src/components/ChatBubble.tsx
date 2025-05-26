@@ -9,10 +9,11 @@ import {
 } from 'react-native';
 import { Colors, FontSizes, Spacing } from '../types';
 import type { ChatMessage } from '../services/moodAnalysis';
+import type { MoodAnalysisResponse } from '../services/openai';
 
 interface ChatBubbleProps {
   message: ChatMessage;
-  onMoodDataPress?: (moodData: any) => void;
+  onMoodDataPress?: (moodData: MoodAnalysisResponse) => void;
 }
 
 const ChatBubble: React.FC<ChatBubbleProps> = ({ 

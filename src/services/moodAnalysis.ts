@@ -35,6 +35,13 @@ class MoodAnalysisService {
   private readonly MAX_DAILY_USAGE = 1; // 1日1回制限
   private readonly CHAT_HISTORY_DAYS = 30; // 30日間保存
 
+  // 衝突しにくいIDを生成（タイムスタンプ + ランダム値）
+  public generateId(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substr(2, 5);
+    return `${timestamp}_${random}`;
+  }
+
   // 今日の使用可能回数をチェック
   async checkDailyUsage(): Promise<DailyUsageInfo> {
     try {
@@ -49,7 +56,30 @@ class MoodAnalysisService {
         };
       }
 
-      const parsed = JSON.parse(usageData);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(usageData);
+      } catch (parseError) {
+        console.error('Failed to parse usage data:', parseError);
+        // パース失敗時はデフォルト値を返す
+        return {
+          lastUsedDate: '',
+          todayUsageCount: 0,
+          maxDailyUsage: this.MAX_DAILY_USAGE,
+        };
+      }
+      
+      // データ形式の検証
+      if (!parsed || typeof parsed !== 'object' || 
+          typeof parsed.lastUsedDate !== 'string' ||
+          typeof parsed.todayUsageCount !== 'number') {
+        console.warn('Invalid usage data format, resetting');
+        return {
+          lastUsedDate: '',
+          todayUsageCount: 0,
+          maxDailyUsage: this.MAX_DAILY_USAGE,
+        };
+      }
       
       // 日付が変わった場合はリセット
       if (parsed.lastUsedDate !== today) {
@@ -111,7 +141,7 @@ class MoodAnalysisService {
     }
 
     const session: MoodSession = {
-      id: Date.now().toString(),
+      id: this.generateId(),
       date: new Date().toISOString().split('T')[0],
       messages: [],
       answers: [],

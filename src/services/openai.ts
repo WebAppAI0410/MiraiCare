@@ -58,18 +58,27 @@ class OpenAIService {
   private async getApiKey(): Promise<string | null> {
     try {
       // セキュアストレージからAPIキーを取得
-      const apiKey = await SecureStore.getItemAsync('openai_api_key');
+      const apiKey = await SecureStore.getItemAsync('openai_api_key', {
+        requireAuthentication: false, // 生体認証要求なし（頻繁アクセス対応）
+      });
       
       // 開発環境用のデフォルト値（実際の運用では設定画面で入力）
-      if (!apiKey) {
+      if (!apiKey || apiKey.trim() === '') {
         console.warn('OpenAI API key not configured. Please set up in settings.');
+        return null;
+      }
+      
+      // APIキー形式の基本的な検証
+      if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
+        console.error('Invalid OpenAI API key format');
         return null;
       }
       
       return apiKey;
     } catch (error) {
-      console.error('Failed to get API key:', error);
-      return null;
+      console.error('Failed to get API key from secure storage:', error);
+      // セキュリティ上、詳細なエラーはログに記録するが、ユーザーには一般的なメッセージを表示
+      throw new Error('設定の読み込みに失敗しました。アプリを再起動してください。');
     }
   }
 
