@@ -1,0 +1,27 @@
+# Codex Web 即座実行用セットアップコマンド
+# このファイルの内容をCodexにコピペして実行
+
+# === 環境変数設定 ===
+export NODE_ENV=development
+export npm_config_audit=false
+export npm_config_fund=false
+export npm_config_prefer_offline=true
+export SKIP_PREFLIGHT_CHECK=true
+export EXPO_NO_TELEMETRY=1
+export JEST_WORKER_ID=1
+export NODE_OPTIONS="--max-old-space-size=4096"
+
+# === 依存関係インストール ===
+npm install --no-audit --prefer-offline
+
+# === 動作確認 ===
+npx jest --version
+npx eslint --version
+npx tsc --version
+
+# === 品質チェック ===
+npm run typecheck
+npm run lint
+
+# === テスト確認 ===
+npm run test:unit

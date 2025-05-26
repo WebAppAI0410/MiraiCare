@@ -5,18 +5,31 @@
 
 ## 🚨 重要: 環境セットアップ手順
 
-### 1. 必須初期化コマンド
+### 1. 環境変数設定（最優先）
+```bash
+# Codex環境で必須設定
+export NODE_ENV=development
+export npm_config_audit=false
+export npm_config_fund=false
+export npm_config_prefer_offline=true
+export SKIP_PREFLIGHT_CHECK=true
+export EXPO_NO_TELEMETRY=1
+export JEST_WORKER_ID=1
+export NODE_OPTIONS="--max-old-space-size=4096"
+```
+
+### 2. 必須初期化コマンド
 ```bash
 # 依存関係インストール（必須）
 npm install --no-audit --prefer-offline
 
 # インストール確認
-jest --version
-eslint --version  
-tsc --version
+npx jest --version
+npx eslint --version  
+npx tsc --version
 ```
 
-### 2. テスト実行前の確認
+### 3. テスト実行前の確認
 ```bash
 # TypeScriptエラーチェック
 npm run typecheck
