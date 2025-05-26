@@ -2,46 +2,32 @@ name: Claude CI Autofix
 
 on:
   workflow_run:
-    workflows: ["RN Unit CI"] # test.yml の name を想定
+    workflows: ["RN Unit CI"]
     types: [completed]
 
 jobs:
   autofix:
     if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     permissions:
-      contents: write
-      pull-requests: write # PRへのコメントや修正提案のため
-      issues: write # 関連Issueへのコメントのため
+      contents: read
+      pull-requests: write
+      issues: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_branch }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit
-
-      - name: Get failure information
-        id: get_failure_info
+      - name: Get failure information and post Claude request
         uses: actions/github-script@v7
-        env: # env を使って必要な値を渡す
+        env:
           TRIGGERING_RUN_ID: ${{ github.event.workflow_run.id }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           PULL_REQUESTS_JSON: ${{ toJson(github.event.workflow_run.pull_requests) || '[]' }}
         with:
           script: |
             const triggering_run_id = process.env.TRIGGERING_RUN_ID;
-            const head_branch = process.env.HEAD_BRANCH; 
+            const head_branch = process.env.HEAD_BRANCH;
             let pull_requests = [];
+            
             try {
               pull_requests = JSON.parse(process.env.PULL_REQUESTS_JSON);
             } catch (e) {
@@ -49,54 +35,74 @@ jobs:
               console.log("PULL_REQUESTS_JSON was:", process.env.PULL_REQUESTS_JSON);
             }
 
-            core.setOutput('triggering_run_id', triggering_run_id);
             console.log(`Triggering workflow run ID: ${triggering_run_id}`);
+            console.log(`Head branch: ${head_branch}`);
 
+            // 失敗したジョブの情報を取得
             const jobs = await github.rest.actions.listJobsForWorkflowRun({
               owner: context.repo.owner,
               repo: context.repo.repo,
               run_id: triggering_run_id,
             });
             
-            const failedJob = jobs.data.jobs.find(job => job.conclusion === 'failure' && (job.name.includes('test') || job.name.includes('Test'))); 
+            const failedJobs = jobs.data.jobs.filter(job => job.conclusion === 'failure');
             
-            if (!failedJob) {
-              core.setFailed('Failed CI job not found in the triggering workflow run.');
+            if (failedJobs.length === 0) {
+              console.log('No failed jobs found in the triggering workflow run.');
               return;
             }
-            core.setOutput('failed_job_name', failedJob.name);
-            core.setOutput('failed_job_id', failedJob.id);
-            console.log(`Failed Job Name: ${failedJob.name}, ID: ${failedJob.id}`);
 
-            let prNumber = null;
-            if (pull_requests && pull_requests.length > 0) {
-              prNumber = pull_requests[0].number;
-              core.setOutput('pr_number', prNumber);
-              console.log(`Associated PR Number: ${prNumber}`);
-            } else {
-              console.log('No associated PR found for this workflow run. Proceeding without PR context for autofix.');
+            // 失敗したジョブのログを取得
+            let errorLogs = '';
+            for (const job of failedJobs) {
+              console.log(`Failed Job: ${job.name}, ID: ${job.id}`);
+              
+              try {
+                const logs = await github.rest.actions.downloadJobLogsForWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  job_id: job.id,
+                });
+                
+                // ログの一部を抽出（長すぎる場合は切り詰め）
+                const logText = logs.data.toString();
+                const relevantLogs = logText.split('\n')
+                  .filter(line => line.includes('error') || line.includes('Error') || line.includes('ERROR') || line.includes('failed') || line.includes('Failed'))
+                  .slice(-20) // 最後の20行のエラー関連ログ
+                  .join('\n');
+                
+                errorLogs += `\n### ${job.name} のエラーログ:\n\`\`\`\n${relevantLogs}\n\`\`\`\n`;
+              } catch (logError) {
+                console.error(`Failed to get logs for job ${job.id}:`, logError);
+                errorLogs += `\n### ${job.name} のエラーログ:\nログの取得に失敗しました。\n`;
+              }
             }
 
-      - name: Claude Code Autofix
-        if: steps.get_failure_info.outputs.failed_job_id # 失敗したジョブIDがあれば実行
-        uses: anthropics/claude-code-action@beta 
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          timeout_minutes: "15"
-          allowed_tools: "Edit,View,GrepTool,Bash(npm test)"
-          custom_instructions: |
-            CI (ジョブ名: `${{ steps.get_failure_info.outputs.failed_job_name }}`) が失敗しました。
-            関連するエラーログを分析し、問題を特定してコードを修正してください。
-            修正はブランチ `${{ github.event.workflow_run.head_branch }}` に直接コミットしてください。
-            コミットメッセージは「Fix: Apply Claude auto-fix for CI failure」としてください。
-            修正後は `npm test` を実行し、テストが成功することを確認してください。
+            // PRが存在する場合、コメントを投稿
+            if (pull_requests && pull_requests.length > 0) {
+              const prNumber = pull_requests[0].number;
+              console.log(`Posting comment to PR #${prNumber}`);
+              
+              const commentBody = `@claude CI (ワークフロー: RN Unit CI) が失敗しました。以下のエラーログを分析して修正案を提案してください。
 
-            **関連情報:**
-            - トリガーとなったワークフロー実行ID: ${{ steps.get_failure_info.outputs.triggering_run_id }}
-            - 失敗したジョブID: ${{ steps.get_failure_info.outputs.failed_job_id }}
-            - 対象ブランチ: ${{ github.event.workflow_run.head_branch }}
-            ${{ steps.get_failure_info.outputs.pr_number && format('- 関連プルリクエスト: #{0}', steps.get_failure_info.outputs.pr_number) || '- プルリクエスト情報なし' }}
-            
-            もしプルリクエストが存在する場合 (#${{ steps.get_failure_info.outputs.pr_number }}) は、修正内容についてコメントもお願いします。
-            プルリクエストが存在しない場合は、ブランチへの直接コミットのみを行ってください。 
+            失敗情報:
+            - ワークフロー実行ID: ${triggering_run_id}
+            - ブランチ: ${head_branch}
+            - 失敗したジョブ数: ${failedJobs.length}
+
+            エラーログ:
+            ${errorLogs}
+
+            修正案を提案し、可能であれば直接コードを修正してください。修正後は npm test でテストが通ることを確認してください。`;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody
+              });
+              
+              console.log(`Comment posted to PR #${prNumber}`);
+            } else {
+              console.log('No associated PR found. Cannot post comment.');
+            } 
