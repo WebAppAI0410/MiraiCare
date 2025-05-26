@@ -64,8 +64,8 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
         id: userDoc.id,
         name: data.name,
         age: data.age,
-        createdAt: data.createdAt?.toDate() || new Date(data.createdAt),
-        updatedAt: data.updatedAt?.toDate() || new Date(data.updatedAt),
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt),
       };
     }
     
@@ -155,7 +155,7 @@ export const getVitalData = async (vitalId: string): Promise<VitalDataDocument |
         steps: data.steps,
         date: data.date,
         timestamp: data.timestamp,
-        createdAt: data.createdAt?.toDate() || new Date(data.createdAt),
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
       };
     }
     
@@ -203,7 +203,7 @@ export const getUserVitalHistory = async (
         steps: data.steps,
         date: data.date,
         timestamp: data.timestamp,
-        createdAt: data.createdAt?.toDate() || new Date(data.createdAt),
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
       };
     });
   } catch (error) {
