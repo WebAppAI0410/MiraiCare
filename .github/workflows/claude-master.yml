@@ -6,12 +6,11 @@ on:
       action_type:
         description: '実行アクション'
         required: true
-        default: 'quality_check' # デフォルトを quality_check に変更
+        default: 'run_quality_check' # quality_check から run_quality_check に変更
         type: choice
         options:
-          - run_claude_autofix # auto_fix から名称変更して意図を明確に
+          - run_claude_autofix
           - run_quality_check
-          # - run_coderabbit_response # 手動でのCodeRabbit応答は通常不要か
 
 jobs:
   # claude-dispatcher は不要になるため削除
@@ -97,4 +96,6 @@ jobs:
           echo "🔍 テスト (npm test):"
           if npm test; then echo "✅ 正常"; else echo "❌ エラー"; fi
           echo "🔍 依存関係 (npm audit --audit-level=high):"
-          if npm audit --audit-level=high; then echo "✅ 正常"; else echo "⚠️ 警告またはエラー"; fi 
+          if npm audit --audit-level=high; then echo "✅ 正常"; else echo "⚠️ 警告またはエラー"; fi
+          echo "🔍 Target Branch:"
+          echo ${{ github.ref_name }} 
