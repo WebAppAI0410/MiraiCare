@@ -1,5 +1,8 @@
 name: RN Comprehensive Testing
-on: [push, pull_request]
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
 
 jobs:
   # 基本的な品質チェック
@@ -137,34 +140,18 @@ jobs:
       - name: Run integration tests
         run: npm run test:integration || echo "統合テストはまだ実装されていません"
 
-  # 全体的な品質チェック
-  final-quality-check:
+  # 統合品質チェック (final-quality-checkと重複削除)
+  integration-summary:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     needs: [quality-check, unit-tests, coverage-report]
     if: always()
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with: 
-          node-version: 20
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit
-      
-      - name: Run comprehensive quality check
-        run: npm run quality:check
-        continue-on-error: true
-      
       - name: Quality check summary
         run: |
           echo "=== 品質チェック完了 ==="
           echo "✅ TypeScript型チェック"
-          echo "✅ ESLintコードチェック"
+          echo "✅ ESLintコードチェック" 
           echo "✅ 単体・コンポーネントテスト"
           echo "✅ カバレッジレポート生成"
           echo "🎯 React Native品質基準達成" 
