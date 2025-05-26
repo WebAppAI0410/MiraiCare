@@ -187,11 +187,12 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleMedicationCheck = () => {
-    navigation.navigate('Reminders');
+    navigation.navigate('Reminder');
   };
 
   const handleBadgePress = () => {
-    navigation.navigate('Badges');
+    // TODO: Implement Badges screen or navigate to appropriate screen
+    console.log('Badge section pressed');
   };
 
   return (
