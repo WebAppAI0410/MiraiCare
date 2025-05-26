@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "test": "jest",
     "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
     "claude": "wsl -d Ubuntu-22.04 -- claude",
     "claude-chat": "wsl -d Ubuntu-22.04 -- claude chat"
   },
@@ -40,8 +41,29 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@testing-library/react-native": "^12.5.3",
+    "@types/jest": "^29.5.12",
     "@types/react": "~19.0.10",
+    "@typescript-eslint/eslint-plugin": "^7.13.0",
+    "@typescript-eslint/parser": "^7.13.0",
+    "eslint": "^8.57.0",
+    "eslint-config-expo": "^7.0.0",
+    "eslint-config-react-native-community": "^0.0.7",
+    "eslint-plugin-react-native": "^4.1.0",
+    "jest": "^29.7.0",
+    "jest-expo": "^51.0.4",
     "typescript": "~5.8.3"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "transformIgnorePatterns": [
+      "node_modules/(?!(?:.pnpm/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg))"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "!src/**/*.d.ts"
+    ],
+    "setupFilesAfterEnv": ["<rootDir>/src/setupTests.ts"]
   },
   "private": true
 }
