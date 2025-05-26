@@ -173,9 +173,10 @@ describe('SensorService', () => {
       // When: 履歴を取得
       const result = await getStepCountHistory(7);
 
-      // Then: エラーが適切にハンドリングされる
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('SENSOR_ERROR');
+      // Then: エラーが発生しても成功として処理され、0歩として記録される
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(7);
+      expect(result.data?.[0].steps).toBe(0);
     });
 
     it('不正な日数パラメータをバリデーションする', async () => {

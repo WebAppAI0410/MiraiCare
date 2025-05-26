@@ -25,17 +25,25 @@ describe('MoodMirrorScreen', () => {
     expect(getByText('こんにちは！今日もあなたの気持ちをお聞かせください。3つの簡単な質問をさせていただきますね。')).toBeTruthy();
   });
 
-  it('質問が順番に表示される', () => {
+  it('質問が順番に表示される', async () => {
     const { getByText } = render(<MoodMirrorScreen />);
-    jest.runAllTimers();
-
-    // 最初の質問が表示されることを確認
-    expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
+    
+    // 1500ms後に最初の質問が表示される
+    jest.advanceTimersByTime(1500);
+    
+    await waitFor(() => {
+      expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
+    });
   });
 
-  it('気分選択ボタンが正常に動作する', () => {
+  it('気分選択ボタンが正常に動作する', async () => {
     const { getByText, getByPlaceholderText } = render(<MoodMirrorScreen />);
-    jest.runAllTimers();
+    
+    // 最初の質問が表示されるまで待つ
+    jest.advanceTimersByTime(1500);
+    await waitFor(() => {
+      expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
+    });
 
     const option = getByText('とても良い');
     fireEvent.press(option);
@@ -55,10 +63,18 @@ describe('MoodMirrorScreen', () => {
 
   it('次の質問への遷移が正常に動作する', async () => {
     const { getByText, getByPlaceholderText } = render(<MoodMirrorScreen />);
-    jest.runAllTimers();
+    
+    // 最初の質問が表示されるまで待つ
+    jest.advanceTimersByTime(1500);
+    await waitFor(() => {
+      expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
+    });
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), '元気です');
     fireEvent.press(getByText('送信'));
+    
+    // 2000ms待機後に次の質問が表示される
+    jest.advanceTimersByTime(2000);
 
     await waitFor(() => {
       expect(getByText('最近、心配していることはありますか？')).toBeTruthy();
@@ -69,39 +85,57 @@ describe('MoodMirrorScreen', () => {
     const { getByText, getByPlaceholderText } = render(
       <MoodMirrorScreen />
     );
-    jest.runAllTimers();
+    
+    // 最初の質問が表示されるまで待つ
+    jest.advanceTimersByTime(1500);
+    await waitFor(() => {
+      expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
+    });
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A1');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
-
+    
+    // 2000ms待機後に次の質問が表示される
+    jest.advanceTimersByTime(2000);
+    
     await waitFor(() => {
       expect(getByText('最近、心配していることはありますか？')).toBeTruthy();
     });
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A2');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
-
+    
+    // 2000ms待機後に次の質問が表示される
+    jest.advanceTimersByTime(2000);
+    
     await waitFor(() => {
       expect(getByText('今日、楽しかったことを教えてください')).toBeTruthy();
     });
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A3');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
-
+    
+    // 分析処理に2000ms + 結果取得に2000ms
+    jest.advanceTimersByTime(4000);
+    
     await waitFor(() => {
       expect(getByText(/分析完了しました！/)).toBeTruthy();
     });
   });
 
-  it('不完全な回答で次へボタンが無効化される', () => {
+  it('不完全な回答で次へボタンが無効化される', async () => {
     const { getByText } = render(<MoodMirrorScreen />);
+    
+    // 最初の質問が表示されるまで待つ
+    jest.advanceTimersByTime(1500);
+    await waitFor(() => {
+      expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
+    });
 
     const sendButton = getByText('送信');
     fireEvent.press(sendButton);
 
+    // 質問が変わらないことを確認
     expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
   });
 
@@ -111,8 +145,7 @@ describe('MoodMirrorScreen', () => {
     const input = getByPlaceholderText('メッセージを入力...');
     fireEvent.changeText(input, 'テスト');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
-
+    
     await waitFor(() => {
       expect(getByPlaceholderText('メッセージを入力...').props.value).toBe('');
     });
@@ -122,21 +155,29 @@ describe('MoodMirrorScreen', () => {
     const { getByText, getByPlaceholderText } = render(
       <MoodMirrorScreen />
     );
+    
+    // 最初の質問が表示されるまで待つ
+    jest.advanceTimersByTime(1500);
+    await waitFor(() => {
+      expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
+    });
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A1');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
+    
+    jest.advanceTimersByTime(2000);
     await waitFor(() => getByText('最近、心配していることはありますか？'));
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A2');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
+    
+    jest.advanceTimersByTime(2000);
     await waitFor(() => getByText('今日、楽しかったことを教えてください'));
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A3');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
-
+    
+    jest.advanceTimersByTime(4000);
     await waitFor(() => {
       expect(getByText(/分析完了しました！/)).toBeTruthy();
     });
@@ -148,21 +189,29 @@ describe('MoodMirrorScreen', () => {
     const { getByText, getByPlaceholderText } = render(
       <MoodMirrorScreen />
     );
+    
+    // 最初の質問が表示されるまで待つ
+    jest.advanceTimersByTime(1500);
+    await waitFor(() => {
+      expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
+    });
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A1');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
+    
+    jest.advanceTimersByTime(2000);
     await waitFor(() => getByText('最近、心配していることはありますか？'));
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A2');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
+    
+    jest.advanceTimersByTime(2000);
     await waitFor(() => getByText('今日、楽しかったことを教えてください'));
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A3');
     fireEvent.press(getByText('送信'));
-    jest.runAllTimers();
-
+    
+    jest.advanceTimersByTime(4000);
     await waitFor(() => {
       expect(getByText(/分析完了しました！/)).toBeTruthy();
     });
@@ -180,11 +229,20 @@ describe('MoodMirrorScreen', () => {
     const { getByText, getByPlaceholderText } = render(
       <MoodMirrorScreen />
     );
+    
+    // 最初の質問が表示されるまで待つ
+    jest.advanceTimersByTime(1500);
+    await waitFor(() => {
+      expect(getByText('今日の気分はいかがですか？')).toBeTruthy();
+    });
 
     fireEvent.changeText(getByPlaceholderText('メッセージを入力...'), 'A1');
     fireEvent.press(getByText('送信'));
 
     expect(getByText('考え中...')).toBeTruthy();
-    jest.runOnlyPendingTimers();
+    
+    await waitFor(() => {
+      expect(getByText('最近、心配していることはありますか？')).toBeTruthy();
+    });
   });
 });

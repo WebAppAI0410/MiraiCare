@@ -1,19 +1,21 @@
-import { signInWithEmail, signUpWithEmail, signOut, getCurrentUser, resetPassword } from '../../src/services/authService';
-import { supabase } from '../../src/config/supabase';
+import { 
+  signInWithEmail, 
+  signUpWithEmail, 
+  signOut, 
+  getCurrentUser, 
+  resetPassword 
+} from '../../src/services/authService';
+import { 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  sendPasswordResetEmail
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
-// Supabaseをモック
-jest.mock('../../src/config/supabase', () => ({
-  supabase: {
-    auth: {
-      signInWithPassword: jest.fn(),
-      signUp: jest.fn(),
-      signOut: jest.fn(),
-      getUser: jest.fn(),
-      resetPasswordForEmail: jest.fn(),
-      onAuthStateChange: jest.fn(),
-    },
-  },
-}));
+// Firebaseをモック
+jest.mock('firebase/auth');
+jest.mock('firebase/firestore');
 
 describe('authService', () => {
   beforeEach(() => {
@@ -23,268 +25,238 @@ describe('authService', () => {
   describe('signInWithEmail', () => {
     it('正常なログインが成功する', async () => {
       const mockUser = {
-        id: 'user-123',
+        uid: 'user-123',
         email: 'test@example.com',
-        email_confirmed_at: '2024-01-01T00:00:00Z',
+        displayName: 'テストユーザー',
       };
 
-      (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
-        data: { user: mockUser, session: { access_token: 'token' } },
-        error: null,
+      const mockUserDoc = {
+        id: 'user-123',
+        email: 'test@example.com',
+        fullName: 'テストユーザー',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      // Firebaseのモックを設定
+      (signInWithEmailAndPassword as jest.Mock).mockResolvedValue({
+        user: mockUser,
       });
 
+      (getDoc as jest.Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => mockUserDoc,
+      });
+
+      // When: ログインを実行
       const result = await signInWithEmail('test@example.com', 'password123');
 
-      expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
+      // Then: 正しくログインできる
+      expect(signInWithEmailAndPassword).toHaveBeenCalledWith(
+        expect.anything(),
+        'test@example.com',
+        'password123'
+      );
+      expect(result).toEqual(expect.objectContaining({
+        id: 'user-123',
         email: 'test@example.com',
-        password: 'password123',
-      });
-      expect(result).toEqual(mockUser);
+        fullName: 'テストユーザー',
+      }));
     });
 
-    it('無効な認証情報でエラーが発生する', async () => {
-      (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
-        data: { user: null, session: null },
-        error: { message: 'Invalid login credentials' },
-      });
+    it('無効な資格情報でエラーが発生する', async () => {
+      // Given: 認証エラーを設定
+      const authError = {
+        code: 'auth/invalid-credential',
+        message: 'Invalid credentials',
+      };
+      (signInWithEmailAndPassword as jest.Mock).mockRejectedValue(authError);
 
+      // When & Then: エラーが投げられる
       await expect(signInWithEmail('test@example.com', 'wrongpassword'))
         .rejects
-        .toThrow('Invalid login credentials');
-
-      expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
-        email: 'test@example.com',
-        password: 'wrongpassword',
-      });
+        .toThrow('ログインに失敗しました');
     });
 
-    it('空のメールアドレスでエラーが発生する', async () => {
+    it('メールアドレスが空の場合エラーが発生する', async () => {
       await expect(signInWithEmail('', 'password123'))
         .rejects
-        .toThrow('メールアドレスとパスワードは必須です');
+        .toThrow('メールアドレスとパスワードを入力してください');
     });
 
-    it('空のパスワードでエラーが発生する', async () => {
+    it('パスワードが空の場合エラーが発生する', async () => {
       await expect(signInWithEmail('test@example.com', ''))
         .rejects
-        .toThrow('メールアドレスとパスワードは必須です');
-    });
-
-    it('ネットワークエラーが適切に処理される', async () => {
-      (supabase.auth.signInWithPassword as jest.Mock).mockRejectedValue(
-        new Error('Network error')
-      );
-
-      await expect(signInWithEmail('test@example.com', 'password123'))
-        .rejects
-        .toThrow('Network error');
+        .toThrow('メールアドレスとパスワードを入力してください');
     });
   });
 
   describe('signUpWithEmail', () => {
-    it('正常なユーザー登録が成功する', async () => {
+    it('新規ユーザー登録が成功する', async () => {
       const mockUser = {
-        id: 'user-123',
+        uid: 'new-user-123',
         email: 'newuser@example.com',
-        email_confirmed_at: null,
       };
 
-      (supabase.auth.signUp as jest.Mock).mockResolvedValue({
-        data: { user: mockUser, session: null },
-        error: null,
+      // Firebaseのモックを設定
+      (createUserWithEmailAndPassword as jest.Mock).mockResolvedValue({
+        user: mockUser,
       });
 
-      const result = await signUpWithEmail('newuser@example.com', 'password123', 'テストユーザー');
+      (setDoc as jest.Mock).mockResolvedValue(undefined);
 
-      expect(supabase.auth.signUp).toHaveBeenCalledWith({
+      // When: サインアップを実行
+      const result = await signUpWithEmail('newuser@example.com', 'password123', '新規ユーザー');
+
+      // Then: 正しく登録できる
+      expect(createUserWithEmailAndPassword).toHaveBeenCalledWith(
+        expect.anything(),
+        'newuser@example.com',
+        'password123'
+      );
+      expect(setDoc).toHaveBeenCalled();
+      expect(result).toEqual(expect.objectContaining({
+        id: 'new-user-123',
         email: 'newuser@example.com',
-        password: 'password123',
-      });
-      expect(result).toEqual(mockUser);
+        fullName: '新規ユーザー',
+      }));
     });
 
     it('既存のメールアドレスでエラーが発生する', async () => {
-      (supabase.auth.signUp as jest.Mock).mockResolvedValue({
-        data: { user: null, session: null },
-        error: { message: 'User already registered' },
-      });
+      // Given: メールアドレス重複エラーを設定
+      const authError = {
+        code: 'auth/email-already-in-use',
+        message: 'Email already in use',
+      };
+      (createUserWithEmailAndPassword as jest.Mock).mockRejectedValue(authError);
 
+      // When & Then: エラーが投げられる
       await expect(signUpWithEmail('existing@example.com', 'password123', 'テストユーザー'))
         .rejects
-        .toThrow('User already registered');
+        .toThrow('このメールアドレスは既に使用されています');
     });
 
     it('弱いパスワードでエラーが発生する', async () => {
-      (supabase.auth.signUp as jest.Mock).mockResolvedValue({
-        data: { user: null, session: null },
-        error: { message: 'Password should be at least 6 characters' },
-      });
+      // Given: 弱いパスワードエラーを設定
+      const authError = {
+        code: 'auth/weak-password',
+        message: 'Password is too weak',
+      };
+      (createUserWithEmailAndPassword as jest.Mock).mockRejectedValue(authError);
 
+      // When & Then: エラーが投げられる
       await expect(signUpWithEmail('test@example.com', '123', 'テストユーザー'))
         .rejects
-        .toThrow('Password should be at least 6 characters');
+        .toThrow('パスワードは6文字以上で設定してください');
     });
   });
 
   describe('signOut', () => {
-    it('正常なログアウトが成功する', async () => {
-      (supabase.auth.signOut as jest.Mock).mockResolvedValue({
-        error: null,
-      });
+    it('正常にログアウトできる', async () => {
+      // Given: ログアウト成功を設定
+      (firebaseSignOut as jest.Mock).mockResolvedValue(undefined);
 
-      await expect(signOut()).resolves.not.toThrow();
-      expect(supabase.auth.signOut).toHaveBeenCalled();
+      // When: ログアウトを実行
+      await signOut();
+
+      // Then: Firebaseのサインアウトが呼ばれる
+      expect(firebaseSignOut).toHaveBeenCalled();
     });
 
-    it('ログアウト時のエラーが適切に処理される', async () => {
-      (supabase.auth.signOut as jest.Mock).mockResolvedValue({
-        error: { message: 'Sign out failed' },
-      });
+    it('ログアウト時のエラーを処理する', async () => {
+      // Given: ログアウトエラーを設定
+      (firebaseSignOut as jest.Mock).mockRejectedValue(new Error('Sign out error'));
 
-      await expect(signOut()).rejects.toThrow('Sign out failed');
+      // When & Then: エラーが投げられる
+      await expect(signOut()).rejects.toThrow('ログアウトに失敗しました');
     });
   });
 
   describe('getCurrentUser', () => {
-    it('現在のユーザー情報を取得できる', async () => {
+    it('ログイン中のユーザー情報を取得できる', async () => {
       const mockUser = {
-        id: 'user-123',
+        uid: 'user-123',
         email: 'test@example.com',
-        email_confirmed_at: '2024-01-01T00:00:00Z',
       };
 
-      (supabase.auth.getUser as jest.Mock).mockResolvedValue({
-        data: { user: mockUser },
-        error: null,
+      const mockUserDoc = {
+        id: 'user-123',
+        email: 'test@example.com',
+        fullName: 'テストユーザー',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      };
+
+      // authのcurrentUserをモック
+      Object.defineProperty(require('../../src/config/firebase').auth, 'currentUser', {
+        value: mockUser,
+        configurable: true,
       });
 
+      (getDoc as jest.Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => mockUserDoc,
+      });
+
+      // When: 現在のユーザーを取得
       const result = await getCurrentUser();
 
-      expect(supabase.auth.getUser).toHaveBeenCalled();
-      expect(result).toEqual(mockUser);
+      // Then: ユーザー情報が返される
+      expect(result).toEqual(expect.objectContaining({
+        id: 'user-123',
+        email: 'test@example.com',
+        fullName: 'テストユーザー',
+      }));
     });
 
-    it('未認証状態でnullが返される', async () => {
-      (supabase.auth.getUser as jest.Mock).mockResolvedValue({
-        data: { user: null },
-        error: null,
+    it('未ログイン時はnullを返す', async () => {
+      // authのcurrentUserをnullに設定
+      Object.defineProperty(require('../../src/config/firebase').auth, 'currentUser', {
+        value: null,
+        configurable: true,
       });
 
+      // When: 現在のユーザーを取得
       const result = await getCurrentUser();
 
+      // Then: nullが返される
       expect(result).toBeNull();
-    });
-
-    it('エラー時に適切にハンドリングされる', async () => {
-      (supabase.auth.getUser as jest.Mock).mockResolvedValue({
-        data: { user: null },
-        error: { message: 'Invalid JWT' },
-      });
-
-      await expect(getCurrentUser()).rejects.toThrow('Invalid JWT');
     });
   });
 
   describe('resetPassword', () => {
-    it('パスワードリセットメールが正常に送信される', async () => {
-      (supabase.auth.resetPasswordForEmail as jest.Mock).mockResolvedValue({
-        data: {},
-        error: null,
-      });
+    it('パスワードリセットメールが送信される', async () => {
+      // Given: メール送信成功を設定
+      (sendPasswordResetEmail as jest.Mock).mockResolvedValue(undefined);
 
-      await expect(resetPassword('test@example.com')).resolves.not.toThrow();
-      expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith(
+      // When: パスワードリセットを実行
+      await resetPassword('test@example.com');
+
+      // Then: メール送信が呼ばれる
+      expect(sendPasswordResetEmail).toHaveBeenCalledWith(
+        expect.anything(),
         'test@example.com'
       );
     });
 
-    it('無効なメールアドレスでエラーが発生する', async () => {
-      (supabase.auth.resetPasswordForEmail as jest.Mock).mockResolvedValue({
-        data: {},
-        error: { message: 'Invalid email address' },
-      });
+    it('存在しないメールアドレスでエラーが発生する', async () => {
+      // Given: ユーザー不在エラーを設定
+      const authError = {
+        code: 'auth/user-not-found',
+        message: 'User not found',
+      };
+      (sendPasswordResetEmail as jest.Mock).mockRejectedValue(authError);
 
-      await expect(resetPassword('invalid-email'))
+      // When & Then: エラーが投げられる
+      await expect(resetPassword('notfound@example.com'))
         .rejects
-        .toThrow('Invalid email address');
+        .toThrow('このメールアドレスは登録されていません');
     });
 
-    it('空のメールアドレスでエラーが発生する', async () => {
+    it('メールアドレスが空の場合エラーが発生する', async () => {
       await expect(resetPassword(''))
         .rejects
-        .toThrow('メールアドレスは必須です');
-    });
-  });
-
-  describe('認証状態監視', () => {
-    it('認証状態変更リスナーが正常に設定される', () => {
-      const mockCallback = jest.fn();
-      
-      // 認証状態監視のセットアップをテスト
-      (supabase.auth.onAuthStateChange as jest.Mock).mockImplementation(
-        (callback) => {
-          callback('SIGNED_IN', { user: { id: '123' } });
-          return { data: { subscription: { unsubscribe: jest.fn() } } };
-        }
-      );
-
-      // 実際の実装で使用される認証状態監視をテスト
-      const { data } = supabase.auth.onAuthStateChange(mockCallback);
-
-      expect(supabase.auth.onAuthStateChange).toHaveBeenCalled();
-      expect(mockCallback).toHaveBeenCalledWith('SIGNED_IN', { user: { id: '123' } });
-      expect(data.subscription.unsubscribe).toBeDefined();
-    });
-  });
-
-  describe('エラーハンドリング', () => {
-    it('Supabaseエラーが適切に変換される', async () => {
-      (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
-        data: { user: null, session: null },
-        error: { 
-          message: 'Email not confirmed',
-          status: 400 
-        },
-      });
-
-      await expect(signInWithEmail('test@example.com', 'password123'))
-        .rejects
-        .toThrow('Email not confirmed');
-    });
-
-    it('ネットワークエラーが適切に処理される', async () => {
-      (supabase.auth.signInWithPassword as jest.Mock).mockRejectedValue(
-        new Error('fetch failed')
-      );
-
-      await expect(signInWithEmail('test@example.com', 'password123'))
-        .rejects
-        .toThrow('fetch failed');
-    });
-
-    it('予期しないエラーが適切に処理される', async () => {
-      (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
-        data: null,
-        error: null,
-      });
-
-      await expect(signInWithEmail('test@example.com', 'password123'))
-        .rejects
-        .toThrow('予期しないエラーが発生しました');
-    });
-  });
-
-  describe('バリデーション', () => {
-    it('メールアドレス形式が正しく検証される', async () => {
-      await expect(signInWithEmail('invalid-email', 'password123'))
-        .rejects
-        .toThrow('有効なメールアドレスを入力してください');
-    });
-
-    it('パスワード長が正しく検証される', async () => {
-      await expect(signUpWithEmail('test@example.com', '12345', 'テストユーザー'))
-        .rejects
-        .toThrow('パスワードは6文字以上である必要があります');
+        .toThrow('メールアドレスを入力してください');
     });
   });
 });

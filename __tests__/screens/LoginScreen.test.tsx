@@ -32,7 +32,7 @@ describe('LoginScreen', () => {
     );
 
     // 主要な要素が表示されることを確認
-    expect(getByText('ログイン')).toBeTruthy();
+    expect(getByLabelText('ログイン')).toBeTruthy(); // ボタンのアクセシビリティラベル
     expect(getByLabelText('メールアドレス入力')).toBeTruthy();
     expect(getByLabelText('パスワード入力')).toBeTruthy();
   });
@@ -67,7 +67,7 @@ describe('LoginScreen', () => {
     const passwordInput = getByLabelText('パスワード入力');
     fireEvent.changeText(passwordInput, 'password123');
 
-    const loginButton = getByText('ログイン');
+    const loginButton = getByLabelText('ログイン');
     fireEvent.press(loginButton);
 
     await waitFor(() => {
@@ -86,7 +86,7 @@ describe('LoginScreen', () => {
     const emailInput = getByLabelText('メールアドレス入力');
     fireEvent.changeText(emailInput, 'test@example.com');
 
-    const loginButton = getByText('ログイン');
+    const loginButton = getByLabelText('ログイン');
     fireEvent.press(loginButton);
 
     await waitFor(() => {
@@ -113,7 +113,7 @@ describe('LoginScreen', () => {
     fireEvent.changeText(emailInput, 'test@example.com');
     fireEvent.changeText(passwordInput, 'password123');
 
-    const loginButton = getByText('ログイン');
+    const loginButton = getByLabelText('ログイン');
     fireEvent.press(loginButton);
 
     await waitFor(() => {
@@ -148,13 +148,13 @@ describe('LoginScreen', () => {
     fireEvent.changeText(emailInput, 'test@example.com');
     fireEvent.changeText(passwordInput, 'wrongpassword');
 
-    const loginButton = getByText('ログイン');
+    const loginButton = getByLabelText('ログイン');
     fireEvent.press(loginButton);
 
     await waitFor(() => {
       expect(Alert.alert).toHaveBeenCalledWith(
         'ログインエラー',
-        expect.stringContaining('ログインに失敗しました')
+        'Invalid credentials'
       );
     });
   });
@@ -197,7 +197,7 @@ describe('LoginScreen', () => {
     fireEvent.changeText(emailInput, 'test@example.com');
     fireEvent.changeText(passwordInput, 'password123');
 
-    const loginButton = getByText('ログイン');
+    const loginButton = getByLabelText('ログイン');
     fireEvent.press(loginButton);
 
     // ローディングインジケーターが表示されることを確認
@@ -211,6 +211,6 @@ describe('LoginScreen', () => {
 
     expect(getByLabelText('メールアドレス入力')).toBeTruthy();
     expect(getByLabelText('パスワード入力')).toBeTruthy();
-    expect(getByLabelText('ログインボタン')).toBeTruthy();
+    expect(getByLabelText('ログイン')).toBeTruthy();
   });
 });

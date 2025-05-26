@@ -115,9 +115,16 @@ describe('HomeScreen', () => {
     );
 
     const levelText = getByText('中');
-    expect(levelText.props.style).toEqual(
-      expect.objectContaining({ color: Colors.warning })
+    const styles = Array.isArray(levelText.props.style) 
+      ? levelText.props.style 
+      : [levelText.props.style];
+    
+    // スタイル配列の中に color: Colors.warning を持つオブジェクトが含まれているか確認
+    const hasWarningColor = styles.some((style: any) => 
+      style && typeof style === 'object' && style.color === Colors.warning
     );
+    
+    expect(hasWarningColor).toBe(true);
   });
 
   it('ローディングインジケーターが表示されていない', () => {

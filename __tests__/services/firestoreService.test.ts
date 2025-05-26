@@ -84,8 +84,8 @@ describe('FirestoreService', () => {
           expect.objectContaining({
             name: '田中太郎',
             age: 75,
-            createdAt: expect.any(Date),
-            updatedAt: expect.any(Date),
+            createdAt: expect.any(Object), // serverTimestampはObjectを返す
+            updatedAt: expect.any(Object), // serverTimestampはObjectを返す
           })
         );
       });
