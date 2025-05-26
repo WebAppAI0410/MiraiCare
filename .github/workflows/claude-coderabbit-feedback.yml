@@ -1,0 +1,41 @@
+name: Claude CodeRabbit Feedback
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  handle_coderabbit_review:
+    if: github.event.review.user.login == 'coderabbitai[bot]' && (contains(github.event.review.body, '**Suggestion:**') || contains(github.event.review.body, '**提案:**'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read # コードの読み取りのため
+      pull-requests: write # PRへのコメントのため
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }} # PRのHEADコミットをチェックアウト
+
+      - name: Claude Analysis on CodeRabbit Feedback
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          timeout_minutes: "10"
+          allowed_tools: "View,GrepTool" # コード参照のみ許可
+          custom_instructions: |
+            このプルリクエスト (#${{ github.event.pull_request.number }}) に対して、CodeRabbitから以下のレビューコメントがありました。
+            ```
+            ${{ github.event.review.body }}
+            ```
+            このレビュー内容と関連するコードを分析し、以下の点について開発者向けに日本語で分かりやすく説明してください。
+            - CodeRabbitの提案は妥当か、なぜそう言えるのか。
+            - 提案以外に考えられる改善策や考慮事項はあるか。
+            - この修正がプロジェクト全体に与える影響は何か（あれば）。
+
+            説明はプルリクエストへのコメントとして投稿してください。
+          # model_name: claude-3-sonnet-20240229 # (アクションのデフォルトに任せる)
+          # github_pr_id: ${{ github.event.pull_request.number }} 
