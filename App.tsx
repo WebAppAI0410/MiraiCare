@@ -9,10 +9,10 @@ import PromptLoginScreen from './src/screens/PromptLoginScreen';
 import { subscribeToAuthState } from './src/services/authService';
 import { User, Colors, AppState } from './src/types';
 
-// INTENTIONAL SYNTAX ERROR FOR TESTING CI FAILURE
+// INTENTIONAL SYNTAX ERROR FOR TESTING FINAL CI AUTOFIX
 const intentionallyBroken = ;
 
-// SECOND INTENTIONAL SYNTAX ERROR FOR TESTING AUTOFIX V2
+// SECOND INTENTIONAL SYNTAX ERROR FOR TESTING FINAL AUTOFIX
 const anotherBrokenVariable = function( {
   return "broken";
 };
