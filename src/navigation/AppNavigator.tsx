@@ -9,6 +9,7 @@ import ActivityScreen from '../screens/ActivityScreen';
 import MoodMirrorScreen from '../screens/MoodMirrorScreen';
 import ReminderScreen from '../screens/ReminderScreen';
 import BadgesScreen from '../screens/BadgesScreen';
+import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import { Colors } from '../types';
 
 const Tab = createBottomTabNavigator();
@@ -91,6 +92,18 @@ export default function AppNavigator({ showOnboarding, onOnboardingComplete }: A
           options={{
             headerShown: true,
             title: 'バッジ',
+            headerStyle: {
+              backgroundColor: Colors.primary,
+            },
+            headerTintColor: Colors.white,
+          }}
+        />
+        <Stack.Screen 
+          name="NotificationSettings" 
+          component={NotificationSettingsScreen}
+          options={{
+            headerShown: true,
+            title: '通知設定',
             headerStyle: {
               backgroundColor: Colors.primary,
             },

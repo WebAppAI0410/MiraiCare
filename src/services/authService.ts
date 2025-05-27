@@ -7,9 +7,11 @@ import {
   updateProfile,
   User as FirebaseUser,
   AuthError,
+  sendEmailVerification,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, COLLECTIONS } from '../config/firebase';
+import { registerForPushNotifications } from './notificationService';
 import type { User } from '../types';
 
 // 認証状態の監視
@@ -55,6 +57,14 @@ export const signInWithEmail = async (email: string, password: string): Promise<
     // Firestoreからユーザー情報を取得
     const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid));
     if (userDoc.exists()) {
+      // ログイン時刻を更新
+      await updateDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid), {
+        lastLoginAt: new Date().toISOString(),
+      });
+      
+      // プッシュ通知トークンを登録
+      registerForPushNotifications().catch(console.error);
+      
       return {
         ...userDoc.data() as User,
         id: firebaseUser.uid,
@@ -82,6 +92,9 @@ export const signUpWithEmail = async (
       displayName: fullName,
     });
     
+    // メール確認を送信
+    await sendEmailVerification(firebaseUser);
+    
     // Firestoreにユーザー情報を保存
     const newUser: User = {
       id: firebaseUser.uid,
@@ -92,6 +105,19 @@ export const signUpWithEmail = async (
     };
     
     await setDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid), newUser);
+    
+    // 初回バッジを付与
+    await setDoc(doc(db, COLLECTIONS.BADGES, `${firebaseUser.uid}_badge-1`), {
+      userId: firebaseUser.uid,
+      id: 'badge-1',
+      name: '初回ログイン',
+      description: 'MiraiCareを初めて使用しました',
+      iconName: 'log-in',
+      unlockedAt: new Date().toISOString(),
+    });
+    
+    // プッシュ通知トークンを登録
+    registerForPushNotifications().catch(console.error);
     
     return newUser;
   } catch (error) {
@@ -176,4 +202,28 @@ const handleAuthError = (error: AuthError): Error => {
   }
   
   return new Error(message);
-}; 
+};
+
+// メール確認の再送信
+export const resendEmailVerification = async (): Promise<void> => {
+  const firebaseUser = auth.currentUser;
+  if (!firebaseUser) {
+    throw new Error('ログインが必要です');
+  }
+  
+  try {
+    await sendEmailVerification(firebaseUser);
+  } catch (error) {
+    throw handleAuthError(error as AuthError);
+  }
+};
+
+// メール確認状態のチェック
+export const checkEmailVerification = async (): Promise<boolean> => {
+  const firebaseUser = auth.currentUser;
+  if (!firebaseUser) return false;
+  
+  // ユーザー情報を再読み込み
+  await firebaseUser.reload();
+  return firebaseUser.emailVerified;
+};

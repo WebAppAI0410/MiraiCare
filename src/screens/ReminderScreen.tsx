@@ -15,6 +15,10 @@ import { Colors, Reminder } from '../types';
 import i18n from '../config/i18n';
 import { auth } from '../config/firebase';
 import { getUserReminders, updateReminderStatus } from '../services/firestoreService';
+import { 
+  scheduleReminderNotification,
+  cancelNotification,
+} from '../services/notificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -163,7 +167,7 @@ const ReminderScreen: React.FC = () => {
       // Firebaseからリマインダーデータを取得
       const fetchedReminders = await getUserReminders(currentUser.uid);
       
-      // データがない場合はデフォルトのリマインダーを表示
+      // データがない場合はデフォルトのリマインダーを作成して通知をスケジュール
       if (fetchedReminders.length === 0) {
         const today = new Date();
         const defaultReminders: Reminder[] = [
@@ -216,6 +220,24 @@ const ReminderScreen: React.FC = () => {
             completed: false,
           },
         ];
+        
+        // デフォルトリマインダーの通知をスケジュール
+        for (const reminder of defaultReminders) {
+          const scheduledTime = new Date(reminder.scheduledTime);
+          if (scheduledTime > new Date()) {
+            try {
+              const notificationId = await scheduleReminderNotification(
+                reminder.type,
+                scheduledTime
+              );
+              // 通知IDを保存する場合はここで処理
+              console.log(`通知スケジュール成功: ${reminder.title} - ${notificationId}`);
+            } catch (error) {
+              console.error('通知スケジュールエラー:', error);
+            }
+          }
+        }
+        
         setReminders(defaultReminders);
       } else {
         setReminders(fetchedReminders);
