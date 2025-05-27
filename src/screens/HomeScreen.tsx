@@ -7,12 +7,20 @@ import {
   SafeAreaView,
   ScrollView,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Colors, FontSizes, TouchTargets, Spacing, RiskLevel, RootStackParamList } from '../types';
 import i18n from '../config/i18n';
+import { auth } from '../config/firebase';
+import { 
+  getTodayVitalData, 
+  getUserBadges, 
+  getTodayMoodData,
+  getUserReminders 
+} from '../services/firestoreService';
 
 const { width } = Dimensions.get('window');
 
@@ -166,8 +174,58 @@ const HomeScreen: React.FC = () => {
   }, []);
 
   const loadDashboardData = async () => {
-    // TODO: Supabaseからデータを取得
-    console.log('Loading dashboard data...');
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.log('No authenticated user');
+        return;
+      }
+
+      // バイタルデータ（歩数）の取得
+      const vitalData = await getTodayVitalData(currentUser.uid);
+      if (vitalData) {
+        setStepsData({ current: vitalData.steps, target: 5000 });
+        
+        // リスクレベルの計算（簡易版）
+        if (vitalData.steps >= 4000) {
+          setRiskLevel('low');
+        } else if (vitalData.steps >= 2000) {
+          setRiskLevel('medium');
+        } else {
+          setRiskLevel('high');
+        }
+      }
+
+      // ムードデータの取得
+      const moodHistory = await getTodayMoodData(currentUser.uid);
+      if (moodHistory.length > 0) {
+        // 最新のムードを設定
+        const latestMood = moodHistory[0];
+        setCurrentMood(latestMood.moodLabel);
+      }
+
+      // バッジ数の取得
+      const badges = await getUserBadges(currentUser.uid);
+      setBadgeCount(badges.length);
+
+      // リマインダーの取得（水分摂取を確認）
+      const reminders = await getUserReminders(currentUser.uid);
+      const waterReminders = reminders.filter(
+        r => r.type === 'water' && r.completed && 
+        new Date(r.completedAt!).toDateString() === new Date().toDateString()
+      );
+      setWaterData({ 
+        current: waterReminders.length * 200, 
+        target: 1200 
+      });
+
+    } catch (error) {
+      console.error('ダッシュボードデータの取得エラー:', error);
+      Alert.alert(
+        'データ取得エラー', 
+        '最新データの取得に失敗しました。しばらくしてから再度お試しください。'
+      );
+    }
   };
 
   const handleRiskCardPress = () => {
@@ -178,12 +236,31 @@ const HomeScreen: React.FC = () => {
     navigation.navigate('MoodMirror');
   };
 
-  const handleDrinkWater = () => {
-    setWaterData(prev => ({
-      ...prev,
-      current: Math.min(prev.current + 200, prev.target),
-    }));
-    console.log('Water intake recorded');
+  const handleDrinkWater = async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      // 水分摂取量を更新
+      setWaterData(prev => ({
+        ...prev,
+        current: Math.min(prev.current + 200, prev.target),
+      }));
+      
+      // TODO: リマインダーサービスに水分摂取を記録
+      console.log('Water intake recorded');
+      
+      // 目標達成時のフィードバック
+      if (waterData.current + 200 >= waterData.target) {
+        Alert.alert(
+          '素晴らしい！', 
+          '今日の水分摂取目標を達成しました！',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('水分摂取記録エラー:', error);
+    }
   };
 
   const handleMedicationCheck = () => {

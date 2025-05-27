@@ -20,6 +20,11 @@ import {
   VitalData, 
   VitalDataDocument
 } from '../types/userData';
+import { 
+  Reminder,
+  Badge,
+  MoodData 
+} from '../types';
 
 /**
  * ユーザープロファイルサービス
@@ -249,5 +254,248 @@ export const getTodayVitalData = async (userId: string): Promise<VitalDataDocume
   } catch (error) {
     console.error('今日のバイタルデータ取得エラー:', error);
     throw new Error('今日のバイタルデータの取得に失敗しました');
+  }
+};
+
+/**
+ * リマインダーサービス
+ */
+
+/**
+ * リマインダーを作成
+ * @param reminder リマインダーデータ
+ * @returns 作成されたドキュメントのID
+ */
+export const createReminder = async (reminder: Omit<Reminder, 'id'>): Promise<string> => {
+  try {
+    const reminderCollection = collection(db, COLLECTIONS.REMINDERS);
+    
+    const docRef = await addDoc(reminderCollection, reminder);
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('リマインダー作成エラー:', error);
+    throw new Error('リマインダーの作成に失敗しました');
+  }
+};
+
+/**
+ * ユーザーのリマインダー一覧を取得
+ * @param userId ユーザーID
+ * @returns リマインダー配列
+ */
+export const getUserReminders = async (userId: string): Promise<Reminder[]> => {
+  try {
+    const reminderCollection = collection(db, COLLECTIONS.REMINDERS);
+    
+    const reminderQuery = query(
+      reminderCollection,
+      where('userId', '==', userId),
+      orderBy('scheduledTime', 'asc')
+    );
+    
+    const querySnapshot = await getDocs(reminderQuery);
+    
+    return querySnapshot.docs.map(docSnapshot => {
+      const data = docSnapshot.data();
+      return {
+        id: docSnapshot.id,
+        ...data
+      } as Reminder;
+    });
+  } catch (error) {
+    console.error('リマインダー取得エラー:', error);
+    throw new Error('リマインダーの取得に失敗しました');
+  }
+};
+
+/**
+ * リマインダーの完了状態を更新
+ * @param reminderId リマインダーID
+ * @param completed 完了状態
+ */
+export const updateReminderStatus = async (reminderId: string, completed: boolean): Promise<void> => {
+  try {
+    const reminderDocRef = doc(db, COLLECTIONS.REMINDERS, reminderId);
+    
+    await updateDoc(reminderDocRef, {
+      completed,
+      completedAt: completed ? serverTimestamp() : null,
+    });
+  } catch (error) {
+    console.error('リマインダー更新エラー:', error);
+    throw new Error('リマインダーの更新に失敗しました');
+  }
+};
+
+/**
+ * バッジサービス
+ */
+
+/**
+ * ユーザーのバッジ一覧を取得
+ * @param userId ユーザーID
+ * @returns バッジ配列
+ */
+export const getUserBadges = async (userId: string): Promise<Badge[]> => {
+  try {
+    const badgeCollection = collection(db, COLLECTIONS.BADGES);
+    
+    const badgeQuery = query(
+      badgeCollection,
+      where('userId', '==', userId)
+    );
+    
+    const querySnapshot = await getDocs(badgeQuery);
+    
+    return querySnapshot.docs.map(docSnapshot => {
+      const data = docSnapshot.data();
+      return {
+        id: docSnapshot.id,
+        ...data
+      } as Badge;
+    });
+  } catch (error) {
+    console.error('バッジ取得エラー:', error);
+    throw new Error('バッジの取得に失敗しました');
+  }
+};
+
+/**
+ * バッジを解除（付与）
+ * @param userId ユーザーID
+ * @param badgeData バッジデータ
+ * @returns 作成されたドキュメントのID
+ */
+export const unlockBadge = async (
+  userId: string,
+  badgeData: Omit<Badge, 'id' | 'unlockedAt'>
+): Promise<string> => {
+  try {
+    const badgeCollection = collection(db, COLLECTIONS.BADGES);
+    
+    const docRef = await addDoc(badgeCollection, {
+      ...badgeData,
+      userId,
+      unlockedAt: serverTimestamp(),
+    });
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('バッジ解除エラー:', error);
+    throw new Error('バッジの解除に失敗しました');
+  }
+};
+
+/**
+ * ムードデータサービス
+ */
+
+/**
+ * ムードデータを保存
+ * @param moodData ムードデータ
+ * @returns 保存されたドキュメントのID
+ */
+export const saveMoodData = async (moodData: Omit<MoodData, 'id' | 'createdAt'>): Promise<string> => {
+  try {
+    const moodCollection = collection(db, COLLECTIONS.MOODS);
+    
+    const docRef = await addDoc(moodCollection, {
+      ...moodData,
+      createdAt: serverTimestamp(),
+    });
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('ムードデータ保存エラー:', error);
+    throw new Error('ムードデータの保存に失敗しました');
+  }
+};
+
+/**
+ * ユーザーのムードデータ履歴を取得
+ * @param userId ユーザーID
+ * @param days 取得する日数（デフォルト: 7日）
+ * @returns ムードデータ配列（日付降順）
+ */
+export const getUserMoodHistory = async (
+  userId: string,
+  days: number = 7
+): Promise<MoodData[]> => {
+  try {
+    const moodCollection = collection(db, COLLECTIONS.MOODS);
+    
+    // 指定された日数分の開始日を計算
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const moodQuery = query(
+      moodCollection,
+      where('userId', '==', userId),
+      where('createdAt', '>=', startDate),
+      orderBy('createdAt', 'desc'),
+      limit(50) // 最大50件
+    );
+    
+    const querySnapshot = await getDocs(moodQuery);
+    
+    return querySnapshot.docs.map(docSnapshot => {
+      const data = docSnapshot.data();
+      return {
+        id: docSnapshot.id,
+        userId: data.userId,
+        moodLabel: data.moodLabel,
+        intensity: data.intensity,
+        suggestion: data.suggestion,
+        notes: data.notes,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+      };
+    });
+  } catch (error) {
+    console.error('ムードデータ履歴取得エラー:', error);
+    throw new Error('ムードデータ履歴の取得に失敗しました');
+  }
+};
+
+/**
+ * 今日のムードデータを取得
+ * @param userId ユーザーID
+ * @returns 今日のムードデータ配列
+ */
+export const getTodayMoodData = async (userId: string): Promise<MoodData[]> => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const moodCollection = collection(db, COLLECTIONS.MOODS);
+    
+    const moodQuery = query(
+      moodCollection,
+      where('userId', '==', userId),
+      where('createdAt', '>=', today),
+      where('createdAt', '<', tomorrow),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(moodQuery);
+    
+    return querySnapshot.docs.map(docSnapshot => {
+      const data = docSnapshot.data();
+      return {
+        id: docSnapshot.id,
+        userId: data.userId,
+        moodLabel: data.moodLabel,
+        intensity: data.intensity,
+        suggestion: data.suggestion,
+        notes: data.notes,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+      };
+    });
+  } catch (error) {
+    console.error('今日のムードデータ取得エラー:', error);
+    throw new Error('今日のムードデータの取得に失敗しました');
   }
 };

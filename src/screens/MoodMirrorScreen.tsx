@@ -14,6 +14,8 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Colors } from '../types';
 import i18n from '../config/i18n';
+import { auth } from '../config/firebase';
+import { saveMoodData as saveMoodDataToFirebase } from '../services/firestoreService';
 
 interface ChatMessage {
   id: string;
@@ -150,8 +152,17 @@ const MoodMirrorScreen: React.FC = () => {
 
       setMessages(prev => [...prev, finalMessage]);
       
-      // TODO: Supabaseにムードデータを保存
-      // await saveMoodData(moodAnalysis);
+      // Firebaseにムードデータを保存
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await saveMoodDataToFirebase({
+          userId: currentUser.uid,
+          moodLabel: moodAnalysis.mood_label,
+          intensity: moodAnalysis.intensity,
+          suggestion: moodAnalysis.suggestion,
+          notes: sessionAnswers.join(' / '), // 回答をメモとして保存
+        });
+      }
       
     } catch (error) {
       console.error('Error analyzing mood:', error);
