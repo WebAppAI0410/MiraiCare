@@ -72,6 +72,33 @@ jest.mock('firebase/functions', () => ({
   connectFunctionsEmulator: jest.fn(),
 }));
 
+// Mock @expo/vector-icons
+jest.mock('@expo/vector-icons', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  const mockIcon = (name) => {
+    return React.forwardRef((props, ref) => {
+      return React.createElement(View, { ...props, ref });
+    });
+  };
+  
+  return {
+    Ionicons: mockIcon('Ionicons'),
+    MaterialIcons: mockIcon('MaterialIcons'),
+    MaterialCommunityIcons: mockIcon('MaterialCommunityIcons'),
+    FontAwesome: mockIcon('FontAwesome'),
+    FontAwesome5: mockIcon('FontAwesome5'),
+    Feather: mockIcon('Feather'),
+    AntDesign: mockIcon('AntDesign'),
+    Entypo: mockIcon('Entypo'),
+    Foundation: mockIcon('Foundation'),
+    SimpleLineIcons: mockIcon('SimpleLineIcons'),
+    Octicons: mockIcon('Octicons'),
+    Zocial: mockIcon('Zocial'),
+    EvilIcons: mockIcon('EvilIcons'),
+  };
+});
 
 // Silence console warnings in tests
 global.console = {

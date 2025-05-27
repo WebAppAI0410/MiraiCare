@@ -7,10 +7,13 @@ import {
   ScrollView,
   SafeAreaView,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Colors, VitalData, RiskLevel } from '../types';
 import i18n from '../config/i18n';
+import { auth } from '../config/firebase';
+import { getUserVitalHistory } from '../services/firestoreService';
 
 const { width } = Dimensions.get('window');
 
@@ -142,31 +145,82 @@ const ActivityScreen: React.FC = () => {
   }, [selectedPeriod]);
 
   const loadActivityData = async () => {
-    // TODO: Supabaseから実際のデータを取得
-    // 現在はダミーデータ
-    const dummyData: DailyData[] = [
-      { date: '2025-01-19', steps: 3250, distance: 2.4, calories: 180 },
-      { date: '2025-01-20', steps: 4100, distance: 3.1, calories: 220 },
-      { date: '2025-01-21', steps: 2800, distance: 2.1, calories: 160 },
-      { date: '2025-01-22', steps: 5200, distance: 3.9, calories: 280 },
-      { date: '2025-01-23', steps: 3800, distance: 2.9, calories: 200 },
-      { date: '2025-01-24', steps: 4500, distance: 3.4, calories: 240 },
-      { date: '2025-01-25', steps: 3250, distance: 2.4, calories: 180 },
-    ];
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.log('No authenticated user');
+        return;
+      }
 
-    setWeeklyData(dummyData);
+      // 選択された期間に基づいてデータを取得
+      const days = selectedPeriod === 'week' ? 7 : 30;
+      const vitalHistory = await getUserVitalHistory(currentUser.uid, days);
 
-    // 統計計算
-    const totalSteps = dummyData.reduce((sum, day) => sum + day.steps, 0);
-    const totalDistance = dummyData.reduce((sum, day) => sum + day.distance, 0);
-    const totalCalories = dummyData.reduce((sum, day) => sum + day.calories, 0);
+      // データをDailyData形式に変換
+      const dailyDataMap = new Map<string, DailyData>();
+      
+      vitalHistory.forEach(vital => {
+        const date = vital.date;
+        if (!dailyDataMap.has(date)) {
+          dailyDataMap.set(date, {
+            date,
+            steps: vital.steps,
+            distance: Math.round(vital.steps * 0.00075 * 10) / 10, // 歩数から距離を推定 (1歩 = 0.75m)
+            calories: Math.round(vital.steps * 0.05), // 歩数からカロリーを推定
+          });
+        }
+      });
 
-    setWeeklyStats({
-      totalSteps,
-      avgSteps: Math.round(totalSteps / dummyData.length),
-      totalDistance: Math.round(totalDistance * 10) / 10,
-      totalCalories,
-    });
+      // 日付でソートして配列に変換
+      const sortedData = Array.from(dailyDataMap.values())
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // データがない場合はダミーデータを生成
+      if (sortedData.length === 0) {
+        const today = new Date();
+        const dummyData: DailyData[] = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
+          dummyData.push({
+            date: date.toISOString().split('T')[0],
+            steps: 0,
+            distance: 0,
+            calories: 0,
+          });
+        }
+        setWeeklyData(dummyData);
+        setWeeklyStats({
+          totalSteps: 0,
+          avgSteps: 0,
+          totalDistance: 0,
+          totalCalories: 0,
+        });
+        return;
+      }
+
+      setWeeklyData(sortedData);
+
+      // 統計計算
+      const totalSteps = sortedData.reduce((sum, day) => sum + day.steps, 0);
+      const totalDistance = sortedData.reduce((sum, day) => sum + day.distance, 0);
+      const totalCalories = sortedData.reduce((sum, day) => sum + day.calories, 0);
+
+      setWeeklyStats({
+        totalSteps,
+        avgSteps: Math.round(totalSteps / sortedData.length),
+        totalDistance: Math.round(totalDistance * 10) / 10,
+        totalCalories,
+      });
+
+    } catch (error) {
+      console.error('活動データの取得エラー:', error);
+      Alert.alert(
+        'データ取得エラー',
+        '活動データの取得に失敗しました。',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const getPeriodLabel = () => {

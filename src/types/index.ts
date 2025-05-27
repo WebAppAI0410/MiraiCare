@@ -58,6 +58,7 @@ export interface Badge {
 // リマインダー
 export interface Reminder {
   id: string;
+  userId?: string;
   type: 'water' | 'medication';
   title: string;
   scheduledTime: string;

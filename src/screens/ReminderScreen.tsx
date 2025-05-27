@@ -13,6 +13,8 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Colors, Reminder } from '../types';
 import i18n from '../config/i18n';
+import { auth } from '../config/firebase';
+import { getUserReminders, updateReminderStatus } from '../services/firestoreService';
 
 const { width } = Dimensions.get('window');
 
@@ -151,57 +153,106 @@ const ReminderScreen: React.FC = () => {
   }, []);
 
   const loadReminders = async () => {
-    // TODO: Supabaseからリマインダーデータを取得
-    // 現在はダミーデータ
-    const today = new Date();
-    const dummyReminders: Reminder[] = [
-      {
-        id: '1',
-        type: 'water',
-        title: '朝の水分補給',
-        scheduledTime: new Date(today.setHours(8, 0, 0, 0)).toISOString(),
-        completed: true,
-        completedAt: new Date(today.setHours(8, 15, 0, 0)).toISOString(),
-      },
-      {
-        id: '2',
-        type: 'medication',
-        title: '朝の薬',
-        scheduledTime: new Date(today.setHours(8, 30, 0, 0)).toISOString(),
-        completed: true,
-        completedAt: new Date(today.setHours(8, 35, 0, 0)).toISOString(),
-      },
-      {
-        id: '3',
-        type: 'water',
-        title: '昼の水分補給',
-        scheduledTime: new Date(today.setHours(12, 0, 0, 0)).toISOString(),
-        completed: false,
-      },
-      {
-        id: '4',
-        type: 'medication',
-        title: '昼の薬',
-        scheduledTime: new Date(today.setHours(12, 30, 0, 0)).toISOString(),
-        completed: false,
-      },
-      {
-        id: '5',
-        type: 'water',
-        title: '夕方の水分補給',
-        scheduledTime: new Date(today.setHours(18, 0, 0, 0)).toISOString(),
-        completed: false,
-      },
-      {
-        id: '6',
-        type: 'medication',
-        title: '夜の薬',
-        scheduledTime: new Date(today.setHours(20, 0, 0, 0)).toISOString(),
-        completed: false,
-      },
-    ];
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.log('No authenticated user');
+        return;
+      }
 
-    setReminders(dummyReminders);
+      // Firebaseからリマインダーデータを取得
+      const fetchedReminders = await getUserReminders(currentUser.uid);
+      
+      // データがない場合はデフォルトのリマインダーを表示
+      if (fetchedReminders.length === 0) {
+        const today = new Date();
+        const defaultReminders: Reminder[] = [
+          {
+            id: 'default-1',
+            userId: currentUser.uid,
+            type: 'water',
+            title: '朝の水分補給',
+            scheduledTime: new Date(today.setHours(8, 0, 0, 0)).toISOString(),
+            completed: false,
+          },
+          {
+            id: 'default-2',
+            userId: currentUser.uid,
+            type: 'medication',
+            title: '朝の薬',
+            scheduledTime: new Date(today.setHours(8, 30, 0, 0)).toISOString(),
+            completed: false,
+          },
+          {
+            id: 'default-3',
+            userId: currentUser.uid,
+            type: 'water',
+            title: '昼の水分補給',
+            scheduledTime: new Date(today.setHours(12, 0, 0, 0)).toISOString(),
+            completed: false,
+          },
+          {
+            id: 'default-4',
+            userId: currentUser.uid,
+            type: 'medication',
+            title: '昼の薬',
+            scheduledTime: new Date(today.setHours(12, 30, 0, 0)).toISOString(),
+            completed: false,
+          },
+          {
+            id: 'default-5',
+            userId: currentUser.uid,
+            type: 'water',
+            title: '夕方の水分補給',
+            scheduledTime: new Date(today.setHours(18, 0, 0, 0)).toISOString(),
+            completed: false,
+          },
+          {
+            id: 'default-6',
+            userId: currentUser.uid,
+            type: 'medication',
+            title: '夜の薬',
+            scheduledTime: new Date(today.setHours(20, 0, 0, 0)).toISOString(),
+            completed: false,
+          },
+        ];
+        setReminders(defaultReminders);
+      } else {
+        setReminders(fetchedReminders);
+      }
+
+      // 日次進捗を計算
+      updateDailyProgress(fetchedReminders.length > 0 ? fetchedReminders : []);
+
+    } catch (error) {
+      console.error('リマインダーデータの取得エラー:', error);
+      Alert.alert(
+        'データ取得エラー',
+        'リマインダーデータの取得に失敗しました。',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const updateDailyProgress = (reminderList: Reminder[]) => {
+    const todayReminders = reminderList.filter(r => {
+      const reminderDate = new Date(r.scheduledTime).toDateString();
+      return reminderDate === new Date().toDateString();
+    });
+
+    const waterReminders = todayReminders.filter(r => r.type === 'water');
+    const medicationReminders = todayReminders.filter(r => r.type === 'medication');
+
+    setDailyProgress({
+      water: {
+        current: waterReminders.filter(r => r.completed).length * 200, // 1回200mlと仮定
+        target: (waterReminders.length || 6) * 200, // デフォルト6回 = 1200ml
+      },
+      medication: {
+        current: medicationReminders.filter(r => r.completed).length,
+        target: medicationReminders.length || 3,
+      },
+    });
   };
 
   const handleToggleReminder = async (id: string) => {
@@ -230,10 +281,22 @@ const ReminderScreen: React.FC = () => {
       }));
     }
 
-    // TODO: Supabaseで完了状態を更新
+    // Firebaseで完了状態を更新（デフォルトIDの場合はスキップ）
     try {
-      // await updateReminderCompletion(id, now);
-      console.log(`Reminder ${id} completed at ${now}`);
+      if (!id.startsWith('default-')) {
+        await updateReminderStatus(id, true);
+      }
+      
+      // 完了通知
+      const messages = {
+        water: '水分補給を完了しました！',
+        medication: '服薬を完了しました！'
+      };
+      Alert.alert(
+        '完了',
+        messages[reminder.type],
+        [{ text: 'OK' }]
+      );
     } catch (error) {
       console.error('Error updating reminder:', error);
       // エラー時は状態を戻す
@@ -242,6 +305,19 @@ const ReminderScreen: React.FC = () => {
           ? { ...r, completed: false, completedAt: undefined }
           : r
       ));
+      
+      // 進捗も戻す
+      if (reminder.type === 'water') {
+        setDailyProgress(prev => ({
+          ...prev,
+          water: { ...prev.water, current: Math.max(0, prev.water.current - 200) }
+        }));
+      } else {
+        setDailyProgress(prev => ({
+          ...prev,
+          medication: { ...prev.medication, current: Math.max(0, prev.medication.current - 1) }
+        }));
+      }
     }
   };
 

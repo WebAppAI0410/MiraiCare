@@ -5,9 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../types';
+import { auth } from '../config/firebase';
+import { getUserBadges } from '../services/firestoreService';
 
 interface Badge {
   id: string;
@@ -27,60 +30,91 @@ export default function BadgesScreen() {
   }, []);
 
   const loadBadges = async () => {
-    // TODO: Firebaseからバッジデータを取得
-    const mockBadges: Badge[] = [
-      {
-        id: '1',
-        name: '初回ログイン',
-        description: 'MiraiCareを初めて使用しました',
-        iconName: 'star',
-        isUnlocked: true,
-        unlockedAt: new Date(),
-        condition: 'アプリに初回ログイン'
-      },
-      {
-        id: '2',
-        name: '健康管理マスター',
-        description: '7日連続でバイタルデータを記録',
-        iconName: 'fitness',
-        isUnlocked: false,
-        condition: '7日連続でバイタルデータを記録'
-      },
-      {
-        id: '3',
-        name: 'ムードケア専門家',
-        description: 'ムードミラーを30回使用',
-        iconName: 'heart',
-        isUnlocked: false,
-        condition: 'ムードミラーを30回使用'
-      },
-      {
-        id: '4',
-        name: '歩数チャンピオン',
-        description: '1日10,000歩を達成',
-        iconName: 'walk',
-        isUnlocked: true,
-        unlockedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        condition: '1日10,000歩を達成'
-      },
-      {
-        id: '5',
-        name: '服薬管理エキスパート',
-        description: '30日連続で服薬記録を完了',
-        iconName: 'medical',
-        isUnlocked: false,
-        condition: '30日連続で服薬記録を完了'
-      },
-      {
-        id: '6',
-        name: 'コミュニティヒーロー',
-        description: '他のユーザーを5人サポート',
-        iconName: 'people',
-        isUnlocked: false,
-        condition: '他のユーザーを5人サポート'
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.log('No authenticated user');
+        return;
       }
-    ];
-    setBadges(mockBadges);
+
+      // Firebaseからユーザーのバッジデータを取得
+      const userBadges = await getUserBadges(currentUser.uid);
+      const unlockedBadgeIds = new Set(userBadges.map(b => b.id));
+
+      // 全バッジの定義（本来はFirebaseのバッジマスターコレクションから取得）
+      const allBadges: Badge[] = [
+        {
+          id: 'badge-1',
+          name: '初回ログイン',
+          description: 'MiraiCareを初めて使用しました',
+          iconName: 'star',
+          isUnlocked: unlockedBadgeIds.has('badge-1'),
+          unlockedAt: userBadges.find(b => b.id === 'badge-1')?.unlockedAt ? 
+            new Date(userBadges.find(b => b.id === 'badge-1')!.unlockedAt!) : undefined,
+          condition: 'アプリに初回ログイン'
+        },
+        {
+          id: 'badge-2',
+          name: '健康管理マスター',
+          description: '7日連続でバイタルデータを記録',
+          iconName: 'fitness',
+          isUnlocked: unlockedBadgeIds.has('badge-2'),
+          unlockedAt: userBadges.find(b => b.id === 'badge-2')?.unlockedAt ? 
+            new Date(userBadges.find(b => b.id === 'badge-2')!.unlockedAt!) : undefined,
+          condition: '7日連続でバイタルデータを記録'
+        },
+        {
+          id: 'badge-3',
+          name: 'ムードケア専門家',
+          description: 'ムードミラーを30回使用',
+          iconName: 'heart',
+          isUnlocked: unlockedBadgeIds.has('badge-3'),
+          unlockedAt: userBadges.find(b => b.id === 'badge-3')?.unlockedAt ? 
+            new Date(userBadges.find(b => b.id === 'badge-3')!.unlockedAt!) : undefined,
+          condition: 'ムードミラーを30回使用'
+        },
+        {
+          id: 'badge-4',
+          name: '歩数チャンピオン',
+          description: '1日10,000歩を達成',
+          iconName: 'walk',
+          isUnlocked: unlockedBadgeIds.has('badge-4'),
+          unlockedAt: userBadges.find(b => b.id === 'badge-4')?.unlockedAt ? 
+            new Date(userBadges.find(b => b.id === 'badge-4')!.unlockedAt!) : undefined,
+          condition: '1日10,000歩を達成'
+        },
+        {
+          id: 'badge-5',
+          name: '服薬管理エキスパート',
+          description: '30日連続で服薬記録を完了',
+          iconName: 'medical',
+          isUnlocked: unlockedBadgeIds.has('badge-5'),
+          unlockedAt: userBadges.find(b => b.id === 'badge-5')?.unlockedAt ? 
+            new Date(userBadges.find(b => b.id === 'badge-5')!.unlockedAt!) : undefined,
+          condition: '30日連続で服薬記録を完了'
+        },
+        {
+          id: 'badge-6',
+          name: 'コミュニティヒーロー',
+          description: '他のユーザーを5人サポート',
+          iconName: 'people',
+          isUnlocked: unlockedBadgeIds.has('badge-6'),
+          unlockedAt: userBadges.find(b => b.id === 'badge-6')?.unlockedAt ? 
+            new Date(userBadges.find(b => b.id === 'badge-6')!.unlockedAt!) : undefined,
+          condition: '他のユーザーを5人サポート'
+        }
+      ];
+      
+      setBadges(allBadges);
+      
+    } catch (error) {
+      console.error('バッジデータの取得エラー:', error);
+      Alert.alert(
+        'データ取得エラー',
+        'バッジデータの取得に失敗しました。',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const renderBadge = (badge: Badge) => (
