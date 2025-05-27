@@ -25,10 +25,12 @@
     "claude-chat": "wsl -d Ubuntu-22.04 -- claude chat"
   },
   "dependencies": {
+    "@expo/vector-icons": "^14.0.2",
     "@react-navigation/bottom-tabs": "^7.3.13",
     "@react-navigation/native": "^7.1.9",
     "@react-navigation/native-stack": "^7.3.13",
     "@react-navigation/stack": "^7.3.2",
+    "@supabase/supabase-js": "^2.39.0",
     "expo": "~53.0.9",
     "expo-av": "^15.1.4",
     "expo-camera": "^16.1.6",
@@ -46,25 +48,23 @@
     "react-i18next": "^15.5.2",
     "react-native": "0.79.2",
     "react-native-svg": "^15.12.0",
-    "@supabase/supabase-js": "^2.39.0",
-    "zustand": "^4.4.7",
-    "@expo/vector-icons": "^14.0.2"
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@react-native-community/eslint-config": "^3.2.0",
+    "@testing-library/react-native": "^12.4.0",
+    "@types/jest": "^29.5.0",
     "@types/react": "~19.0.10",
-    "typescript": "~5.8.3",
-    "eslint": "^8.57.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
     "eslint-config-expo": "^7.0.0",
-    "@react-native-community/eslint-config": "^3.2.0",
     "eslint-plugin-jest": "^27.6.0",
+    "identity-obj-proxy": "^3.0.0",
     "jest": "^29.7.0",
-    "@types/jest": "^29.5.0",
-    "@testing-library/react-native": "^12.4.0",
     "react-test-renderer": "19.0.0",
-    "identity-obj-proxy": "^3.0.0"
+    "typescript": "~5.8.3"
   },
   "private": true
 }

@@ -108,6 +108,7 @@ export const Colors = {
   // 追加のカラー定義
   disabled: '#C7C7CC',
   gray: '#8E8E93',
+  lightGray: '#E0E0E0',
   white: '#FFFFFF',
 };
 

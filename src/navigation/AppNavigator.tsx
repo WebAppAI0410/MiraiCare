@@ -1,5 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -7,9 +8,65 @@ import HomeScreen from '../screens/HomeScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 import MoodMirrorScreen from '../screens/MoodMirrorScreen';
 import ReminderScreen from '../screens/ReminderScreen';
+import BadgesScreen from '../screens/BadgesScreen';
 import { Colors } from '../types';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+// タブナビゲーター（メイン画面）
+function TabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Activity') {
+            iconName = focused ? 'fitness' : 'fitness-outline';
+          } else if (route.name === 'MoodMirror') {
+            iconName = focused ? 'heart' : 'heart-outline';
+          } else if (route.name === 'Reminder') {
+            iconName = focused ? 'notifications' : 'notifications-outline';
+          } else {
+            iconName = 'help-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.gray,
+        tabBarStyle: {
+          backgroundColor: Colors.white,
+        },
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen 
+        name="Home" 
+        component={HomeScreen}
+        options={{ title: 'ホーム' }}
+      />
+      <Tab.Screen 
+        name="Activity" 
+        component={ActivityScreen}
+        options={{ title: 'アクティビティ' }}
+      />
+      <Tab.Screen 
+        name="MoodMirror" 
+        component={MoodMirrorScreen}
+        options={{ title: 'ムードミラー' }}
+      />
+      <Tab.Screen 
+        name="Reminder" 
+        component={ReminderScreen}
+        options={{ title: 'リマインダー' }}
+      />
+    </Tab.Navigator>
+  );
+}
 
 interface AppNavigatorProps {
   showOnboarding: boolean;
@@ -19,54 +76,28 @@ interface AppNavigatorProps {
 export default function AppNavigator({ showOnboarding, onOnboardingComplete }: AppNavigatorProps) {
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ focused, color, size }) => {
-            let iconName: keyof typeof Ionicons.glyphMap;
-
-            if (route.name === 'Home') {
-              iconName = focused ? 'home' : 'home-outline';
-            } else if (route.name === 'Activity') {
-              iconName = focused ? 'fitness' : 'fitness-outline';
-            } else if (route.name === 'MoodMirror') {
-              iconName = focused ? 'heart' : 'heart-outline';
-            } else if (route.name === 'Reminder') {
-              iconName = focused ? 'notifications' : 'notifications-outline';
-            } else {
-              iconName = 'help-outline';
-            }
-
-            return <Ionicons name={iconName} size={size} color={color} />;
-          },
-          tabBarActiveTintColor: Colors.primary,
-          tabBarInactiveTintColor: Colors.gray,
-          tabBarStyle: {
-            backgroundColor: Colors.white,
-          },
+      <Stack.Navigator
+        screenOptions={{
           headerShown: false,
-        })}
+        }}
       >
-        <Tab.Screen 
-          name="Home" 
-          component={HomeScreen}
-          options={{ title: 'ホーム' }}
+        <Stack.Screen 
+          name="Main" 
+          component={TabNavigator}
         />
-        <Tab.Screen 
-          name="Activity" 
-          component={ActivityScreen}
-          options={{ title: 'アクティビティ' }}
+        <Stack.Screen 
+          name="Badges" 
+          component={BadgesScreen}
+          options={{
+            headerShown: true,
+            title: 'バッジ',
+            headerStyle: {
+              backgroundColor: Colors.primary,
+            },
+            headerTintColor: Colors.white,
+          }}
         />
-        <Tab.Screen 
-          name="MoodMirror" 
-          component={MoodMirrorScreen}
-          options={{ title: 'ムードミラー' }}
-        />
-        <Tab.Screen 
-          name="Reminder" 
-          component={ReminderScreen}
-          options={{ title: 'リマインダー' }}
-        />
-      </Tab.Navigator>
+      </Stack.Navigator>
     </NavigationContainer>
   );
 }

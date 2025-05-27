@@ -9,6 +9,7 @@ React Native + TypeScript + Supabaseを使用した高齢者向けヘルスケ�
 - コードは簡潔で明快に書いてください
 - 日本語でコメントを追加してください
 - PRを作成する際は、必ずコミットを作成してからPRを作成してください
+- プロジェクトの概要はREADMEファイルに書いてあります。
 
 ## 技術スタック
 - **フロントエンド**: React Native + TypeScript + Expo

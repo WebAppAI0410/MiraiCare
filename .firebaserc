@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "miraicare-360-mvp"
+  },
   "targets": {},
   "etags": {}
 }
