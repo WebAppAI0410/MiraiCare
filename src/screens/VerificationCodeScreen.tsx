@@ -16,6 +16,7 @@ import { Colors, FontSizes, TouchTargets, Spacing } from '../types';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { signInWithCustomToken } from 'firebase/auth';
 import { auth } from '../config/firebase';
+import { signUpWithEmail } from '../services/authService';
 
 interface VerificationCodeScreenProps {
   email: string;
@@ -90,10 +91,18 @@ const VerificationCodeScreen: React.FC<VerificationCodeScreenProps> = ({
     setIsLoading(true);
     try {
       const result = await verifyCode({ email, code: fullCode });
-      const { customToken } = result.data as any;
       
-      // カスタムトークンでログイン
-      await signInWithCustomToken(auth, customToken);
+      if (action === 'signup' && global.tempUserData) {
+        // サインアップの場合、ユーザーを作成
+        const { password, fullName } = global.tempUserData;
+        await signUpWithEmail(email, password, fullName);
+        // 一時データをクリア
+        global.tempUserData = undefined;
+      } else {
+        // ログインの場合、カスタムトークンでログイン
+        const { customToken } = result.data as any;
+        await signInWithCustomToken(auth, customToken);
+      }
       
       Alert.alert(
         action === 'signup' ? '登録完了' : 'ログイン成功',
@@ -158,7 +167,9 @@ const VerificationCodeScreen: React.FC<VerificationCodeScreenProps> = ({
           {code.map((digit, index) => (
             <TextInput
               key={index}
-              ref={(ref) => (inputRefs.current[index] = ref)}
+              ref={(ref) => {
+                inputRefs.current[index] = ref;
+              }}
               style={[
                 styles.codeInput,
                 digit ? styles.codeInputFilled : null,

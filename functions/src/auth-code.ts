@@ -1,6 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import * as nodemailer from 'nodemailer';
+const nodemailer = require('nodemailer');
 
 // 6桁の認証コードを生成
 function generateVerificationCode(): string {

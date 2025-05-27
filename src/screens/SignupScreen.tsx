@@ -14,14 +14,17 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Colors, FontSizes, TouchTargets, Spacing } from '../types';
-import { signUpWithEmail } from '../services/authService';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 interface SignupScreenProps {
   onSignupSuccess: () => void;
   onSwitchToLogin: () => void;
+  onProceedToVerification: (email: string) => void;
 }
 
-const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchToLogin }) => {
+const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchToLogin, onProceedToVerification }) => {
+  const functions = getFunctions();
+  const sendVerificationCode = httpsCallable(functions, 'sendVerificationCode');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -73,22 +76,27 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
       return;
     }
 
-    console.log('Starting signup with:', { email: email.trim(), fullName: fullName.trim() });
     setIsLoading(true);
     try {
-      const user = await signUpWithEmail(email.trim(), password, fullName.trim());
-      console.log('Signup successful');
+      // ユーザー情報を一時保存（グローバルステートまたはAsyncStorageに）
+      // TODO: AsyncStorageへの保存を実装
+      global.tempUserData = {
+        email: email.trim(),
+        password,
+        fullName: fullName.trim(),
+      };
+      
+      // 認証コードを送信
+      console.log('Sending verification code to:', email.trim());
+      await sendVerificationCode({ email: email.trim(), action: 'signup' });
       
       Alert.alert(
-        '登録完了',
-        `アカウントが作成されました！\n\n${email.trim()} 宛てに確認メールを送信しました。\n\nメール内のリンクをクリックして、メールアドレスを確認してください。\n\n確認後、ログインできるようになります。`,
+        '認証コードを送信しました',
+        `${email.trim()} 宛てに6桁の認証コードを送信しました。`,
         [
-          { 
-            text: 'ログイン画面へ', 
-            onPress: () => {
-              console.log('Navigating to login screen');
-              onSignupSuccess();
-            }
+          {
+            text: '次へ',
+            onPress: () => onProceedToVerification(email.trim())
           }
         ],
         { cancelable: false }

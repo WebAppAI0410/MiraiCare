@@ -4,6 +4,7 @@ import { View, ActivityIndicator } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
+import VerificationCodeScreen from './src/screens/VerificationCodeScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import GuestHomeScreen from './src/screens/GuestHomeScreen';
 import PromptLoginScreen from './src/screens/PromptLoginScreen';
@@ -23,6 +24,8 @@ export default function App() {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
+  const [showVerification, setShowVerification] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
 
   useEffect(() => {
     // 認証状態の監視
@@ -63,6 +66,22 @@ export default function App() {
     // サインアップ成功後はログイン画面へ
     setShowSignup(false);
     setShowLogin(true);
+  };
+  
+  const handleProceedToVerification = (email: string) => {
+    setVerificationEmail(email);
+    setShowSignup(false);
+    setShowVerification(true);
+  };
+  
+  const handleVerificationSuccess = () => {
+    setShowVerification(false);
+    setAppState('authenticated');
+  };
+  
+  const handleVerificationBack = () => {
+    setShowVerification(false);
+    setShowSignup(true);
   };
 
   const handleLoginNavigate = () => {
@@ -110,6 +129,14 @@ export default function App() {
         <SignupScreen
           onSignupSuccess={handleSignupSuccess}
           onSwitchToLogin={handleSwitchToLogin}
+          onProceedToVerification={handleProceedToVerification}
+        />
+      ) : showVerification ? (
+        <VerificationCodeScreen
+          email={verificationEmail}
+          action="signup"
+          onSuccess={handleVerificationSuccess}
+          onBack={handleVerificationBack}
         />
       ) : (
         <>

@@ -5,6 +5,9 @@ import type { EventContext } from "firebase-functions";
 // Firebase Admin初期化
 admin.initializeApp();
 
+// 認証コード関連の関数をエクスポート
+export { sendVerificationCode, verifyCode } from "./auth-code";
+
 const db = admin.firestore();
 const messaging = admin.messaging();
 
