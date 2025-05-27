@@ -102,24 +102,26 @@ describe('データフロー統合テスト', () => {
       expect(result.current.stepCount).toBe(5000);
 
       // Phase 5: バイタルデータ保存
-      const vitalData: VitalData = {
-        userId: userId,
+      const vitalData: Partial<VitalData> = {
         steps: stepResult.data!.steps,
         date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
         timestamp: stepResult.data!.timestamp,
       };
 
       const vitalId = 'vital123';
-      mockFirestoreService.saveVitalData.mockResolvedValue(vitalId);
+      mockFirestoreService.saveVitalData.mockResolvedValue({ id: vitalId, success: true });
 
-      const saveResult = await firestoreService.saveVitalData(vitalData);
-      expect(saveResult).toBe(vitalId);
-      expect(mockFirestoreService.saveVitalData).toHaveBeenCalledWith(vitalData);
+      const saveResult = await firestoreService.saveVitalData(userId, vitalData);
+      expect(saveResult).toEqual({ id: vitalId, success: true });
+      expect(mockFirestoreService.saveVitalData).toHaveBeenCalledWith(userId, vitalData);
 
       // Phase 6: 保存されたバイタルデータ確認
       const savedVitalData = {
         id: vitalId,
-        ...vitalData,
+        userId: userId,
+        steps: vitalData.steps!,
+        date: vitalData.date!,
+        timestamp: vitalData.timestamp!,
         createdAt: new Date(),
       };
 

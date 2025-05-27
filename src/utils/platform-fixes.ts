@@ -1,30 +1,30 @@
-import { Platform } from 'react-native';
+import { Platform, ViewStyle, TextStyle } from 'react-native';
 
 // Web環境でのTouchableOpacityの問題を修正
-export const webTouchableOpacityFix = Platform.select({
+export const webTouchableOpacityFix = Platform.select<ViewStyle>({
   web: {
-    cursor: 'pointer',
-    userSelect: 'none' as const,
-    WebkitTapHighlightColor: 'transparent',
-    transition: 'opacity 0.2s',
-  },
+    cursor: 'pointer' as any,
+    userSelect: 'none' as any,
+    WebkitTapHighlightColor: 'transparent' as any,
+    transition: 'opacity 0.2s' as any,
+  } as ViewStyle,
   default: {},
 });
 
 // Web環境でのScrollViewの問題を修正
-export const webScrollViewFix = Platform.select({
+export const webScrollViewFix = Platform.select<ViewStyle>({
   web: {
-    height: '100%',
-    overflowY: 'auto' as const,
-  },
+    height: '100%' as any,
+    overflowY: 'auto' as any,
+  } as ViewStyle,
   default: {},
 });
 
 // Web環境でのTextInputの問題を修正
-export const webTextInputFix = Platform.select({
+export const webTextInputFix = Platform.select<TextStyle>({
   web: {
-    outlineStyle: 'none',
-    boxSizing: 'border-box' as const,
-  },
+    outlineStyle: 'none' as any,
+    boxSizing: 'border-box' as any,
+  } as TextStyle,
   default: {},
 });

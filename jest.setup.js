@@ -20,15 +20,26 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(),
 }));
 
+// Pedometerモックのファクトリー関数
+const createPedometerMock = () => ({
+  isAvailableAsync: jest.fn().mockResolvedValue(true),
+  getStepCountAsync: jest.fn().mockResolvedValue({ steps: 5000 }),
+  watchStepCount: jest.fn().mockReturnValue({
+    remove: jest.fn(),
+  }),
+  requestPermissionsAsync: jest.fn().mockResolvedValue({
+    status: 'granted',
+    granted: true,
+  }),
+  Subscription: jest.fn(),
+});
+
 jest.mock('expo-sensors', () => ({
-  Pedometer: {
-    isAvailableAsync: jest.fn().mockResolvedValue(true),
-    getStepCountAsync: jest.fn().mockResolvedValue({ steps: 5000 }),
-    watchStepCount: jest.fn().mockReturnValue({
-      remove: jest.fn(),
-    }),
-  },
+  Pedometer: createPedometerMock(),
 }));
+
+// expo-sensors/build/Pedometerのモック
+jest.mock('expo-sensors/build/Pedometer', () => createPedometerMock());
 
 // Mock Firebase
 jest.mock('firebase/app', () => ({

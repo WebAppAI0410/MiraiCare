@@ -15,7 +15,6 @@ jest.spyOn(Alert, 'alert');
 describe('SignupScreen', () => {
   const mockOnSignupSuccess = jest.fn();
   const mockOnSwitchToLogin = jest.fn();
-  const mockOnProceedToVerification = jest.fn();
   const mockSendVerificationCode = jest.fn();
 
   beforeEach(() => {
@@ -27,7 +26,6 @@ describe('SignupScreen', () => {
       <SignupScreen
         onSignupSuccess={mockOnSignupSuccess}
         onSwitchToLogin={mockOnSwitchToLogin}
-        onProceedToVerification={mockOnProceedToVerification}
       />
     );
   };
