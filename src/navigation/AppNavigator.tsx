@@ -10,6 +10,8 @@ import MoodMirrorScreen from '../screens/MoodMirrorScreen';
 import ReminderScreen from '../screens/ReminderScreen';
 import BadgesScreen from '../screens/BadgesScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
+import { ChartsScreen } from '../screens/ChartsScreen';
+import { ReportScreen } from '../screens/ReportScreen';
 import { Colors } from '../types';
 
 const Tab = createBottomTabNavigator();
@@ -31,6 +33,8 @@ function TabNavigator() {
             iconName = focused ? 'heart' : 'heart-outline';
           } else if (route.name === 'Reminder') {
             iconName = focused ? 'notifications' : 'notifications-outline';
+          } else if (route.name === 'Charts') {
+            iconName = focused ? 'stats-chart' : 'stats-chart-outline';
           } else {
             iconName = 'help-outline';
           }
@@ -64,6 +68,11 @@ function TabNavigator() {
         name="Reminder" 
         component={ReminderScreen}
         options={{ title: 'リマインダー' }}
+      />
+      <Tab.Screen 
+        name="Charts" 
+        component={ChartsScreen}
+        options={{ title: 'グラフ' }}
       />
     </Tab.Navigator>
   );
@@ -104,6 +113,18 @@ export default function AppNavigator({ showOnboarding, onOnboardingComplete }: A
           options={{
             headerShown: true,
             title: '通知設定',
+            headerStyle: {
+              backgroundColor: Colors.primary,
+            },
+            headerTintColor: Colors.white,
+          }}
+        />
+        <Stack.Screen 
+          name="Report" 
+          component={ReportScreen}
+          options={{
+            headerShown: true,
+            title: 'レポート',
             headerStyle: {
               backgroundColor: Colors.primary,
             },

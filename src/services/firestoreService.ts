@@ -628,3 +628,71 @@ export const getRiskAssessmentHistory = async (
     throw new Error('リスクアセスメント履歴の取得に失敗しました');
   }
 };
+
+/**
+ * 通知履歴サービス
+ */
+
+interface NotificationHistory {
+  userId: string;
+  notificationId: string;
+  type: 'risk-alert' | 'reminder' | 'report';
+  riskLevel?: string;
+  sentAt: string;
+  assessment?: OverallRiskAssessment;
+}
+
+/**
+ * 通知履歴を保存
+ * @param history 通知履歴データ
+ * @returns 保存成功フラグ
+ */
+export const saveNotificationHistory = async (
+  history: NotificationHistory
+): Promise<boolean> => {
+  try {
+    const notificationCollection = collection(db, 'notificationHistory');
+    
+    await addDoc(notificationCollection, {
+      ...history,
+      createdAt: serverTimestamp(),
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('通知履歴保存エラー:', error);
+    return false;
+  }
+};
+
+/**
+ * 通知履歴を取得
+ * @param userId ユーザーID
+ * @param days 取得する日数（デフォルト: 30日）
+ * @returns 通知履歴配列
+ */
+export const getNotificationHistory = async (
+  userId: string,
+  days: number = 30
+): Promise<NotificationHistory[]> => {
+  try {
+    const notificationCollection = collection(db, 'notificationHistory');
+    
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const historyQuery = query(
+      notificationCollection,
+      where('userId', '==', userId),
+      where('sentAt', '>=', startDate.toISOString()),
+      orderBy('sentAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(historyQuery);
+    
+    return querySnapshot.docs.map(doc => doc.data() as NotificationHistory);
+  } catch (error) {
+    console.error('通知履歴取得エラー:', error);
+    return [];
+  }
+};

@@ -165,6 +165,8 @@ export type RootStackParamList = {
   NotificationSettings: undefined;
   Reminiscence: undefined;
   CBTCoach: undefined;
+  Charts: undefined;
+  Report: undefined;
 };
 
 export type TabParamList = {

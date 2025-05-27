@@ -9,12 +9,23 @@ import GuestHomeScreen from './src/screens/GuestHomeScreen';
 import PromptLoginScreen from './src/screens/PromptLoginScreen';
 import { subscribeToAuthState } from './src/services/authService';
 import { User, Colors, AppState } from './src/types';
+import { notificationService } from './src/services/notificationService';
+import * as Notifications from 'expo-notifications';
 
 // SYNTAX ERRORS FIXED AFTER SUCCESSFUL CI AUTOFIX TEST
 // const intentionallyBroken = ;
 // const anotherBrokenVariable = function( {
 //   return "broken";
 // };
+
+// 通知設定
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -25,6 +36,9 @@ export default function App() {
   const [showSignup, setShowSignup] = useState(false);
 
   useEffect(() => {
+    // 通知リスナーの設定
+    notificationService.setupNotificationListeners();
+    
     // 認証状態の監視
     const unsubscribe = subscribeToAuthState((currentUser) => {
       setUser(currentUser);
