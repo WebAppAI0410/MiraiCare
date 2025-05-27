@@ -1,5 +1,7 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import { EventContext } from "firebase-functions";
+import { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 
 // Firebase Admin初期化
 admin.initializeApp();
@@ -21,7 +23,7 @@ const COLLECTIONS = {
 export const generateDailyReport = functions.pubsub
   .schedule("0 20 * * *")
   .timeZone("Asia/Tokyo")
-  .onRun(async (context) => {
+  .onRun(async (context: EventContext) => {
     console.log("デイリーレポート生成開始");
     
     try {
@@ -64,7 +66,7 @@ export const generateDailyReport = functions.pubsub
         let avgHeartRate = 0;
         let heartRateCount = 0;
         
-        vitalDataSnapshot.forEach((doc) => {
+        vitalDataSnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
           const data = doc.data();
           totalSteps += data.steps || 0;
           if (data.heartRate) {
@@ -138,7 +140,7 @@ export const generateDailyReport = functions.pubsub
 // バッジ獲得チェック関数（バイタルデータ作成時にトリガー）
 export const checkBadgeAchievements = functions.firestore
   .document(`${COLLECTIONS.VITAL_DATA}/{docId}`)
-  .onCreate(async (snap, context) => {
+  .onCreate(async (snap: QueryDocumentSnapshot<DocumentData>, context: EventContext) => {
     const vitalData = snap.data();
     const userId = vitalData.userId;
     
@@ -198,7 +200,7 @@ export const checkBadgeAchievements = functions.firestore
 // ムードミラー使用回数チェック（ムードデータ作成時にトリガー）
 export const checkMoodMirrorBadge = functions.firestore
   .document(`${COLLECTIONS.MOOD_DATA}/{docId}`)
-  .onCreate(async (snap, context) => {
+  .onCreate(async (snap: QueryDocumentSnapshot<DocumentData>, context: EventContext) => {
     const moodData = snap.data();
     const userId = moodData.userId;
     
@@ -272,7 +274,7 @@ async function awardBadge(
 // リマインダー通知送信関数（5分ごとに実行）
 export const sendReminderNotifications = functions.pubsub
   .schedule("*/5 * * * *")
-  .onRun(async (context) => {
+  .onRun(async (context: EventContext) => {
     const now = new Date();
     const fiveMinutesLater = new Date(now.getTime() + 5 * 60 * 1000);
     
@@ -328,7 +330,7 @@ export const sendReminderNotifications = functions.pubsub
   });
 
 // ユーザー削除時のクリーンアップ
-export const cleanupUserData = functions.auth.user().onDelete(async (user) => {
+export const cleanupUserData = functions.auth.user().onDelete(async (user: admin.auth.UserRecord) => {
   const userId = user.uid;
   const batch = db.batch();
   
