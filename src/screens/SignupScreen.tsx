@@ -15,6 +15,8 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Colors, FontSizes, TouchTargets, Spacing } from '../types';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { debugLog, debugError } from '../utils/debug';
+import { webTouchableOpacityFix, webScrollViewFix, webTextInputFix } from '../utils/platform-fixes';
 
 interface SignupScreenProps {
   onSignupSuccess: () => void;
@@ -70,13 +72,17 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
   };
 
   const handleSignup = async () => {
+    debugLog('SignupScreen', 'Signup button pressed');
     console.log('Signup button pressed');
     if (!validateInput()) {
+      debugLog('SignupScreen', 'Validation failed');
       console.log('Validation failed');
       return;
     }
 
     setIsLoading(true);
+    debugLog('SignupScreen', 'Starting signup process', { email: email.trim() });
+    
     try {
       // ユーザー情報を一時保存（グローバルステートまたはAsyncStorageに）
       // TODO: AsyncStorageへの保存を実装
@@ -87,8 +93,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
       };
       
       // 認証コードを送信
+      debugLog('SignupScreen', 'Calling sendVerificationCode');
       console.log('Sending verification code to:', email.trim());
-      await sendVerificationCode({ email: email.trim(), action: 'signup' });
+      
+      const result = await sendVerificationCode({ email: email.trim(), action: 'signup' });
+      debugLog('SignupScreen', 'sendVerificationCode result', result);
       
       Alert.alert(
         '認証コードを送信しました',
@@ -102,6 +111,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
         { cancelable: false }
       );
     } catch (error) {
+      debugError('SignupScreen', error);
       console.error('Signup error:', error);
       const firebaseError = error as any;
       let errorMessage = '登録に失敗しました。';
@@ -140,7 +150,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
         style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} style={webScrollViewFix}>
           {/* ヘッダー */}
           <View style={styles.header}>
             <Text style={styles.title}>MiraiCare</Text>
@@ -155,7 +165,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
             <View style={styles.inputGroup}>
               <Text style={styles.label}>お名前</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, webTextInputFix]}
                 value={fullName}
                 onChangeText={setFullName}
                 placeholder="山田 太郎"
@@ -246,8 +256,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
           {/* ボタン */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.signupButton, isLoading && styles.buttonDisabled]}
+              style={[styles.signupButton, isLoading && styles.buttonDisabled, webTouchableOpacityFix]}
               onPress={() => {
+                debugLog('SignupScreen', 'TouchableOpacity onPress triggered');
                 console.log('TouchableOpacity pressed');
                 handleSignup();
               }}

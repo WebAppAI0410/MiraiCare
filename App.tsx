@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Text, TouchableOpacity, Platform } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
@@ -8,6 +8,7 @@ import VerificationCodeScreen from './src/screens/VerificationCodeScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import GuestHomeScreen from './src/screens/GuestHomeScreen';
 import PromptLoginScreen from './src/screens/PromptLoginScreen';
+import TestScreen from './src/screens/TestScreen';
 import { subscribeToAuthState } from './src/services/authService';
 import { User, Colors, AppState } from './src/types';
 
@@ -26,6 +27,7 @@ export default function App() {
   const [showSignup, setShowSignup] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState('');
+  const [showTest, setShowTest] = useState(false);
 
   useEffect(() => {
     // 認証状態の監視
@@ -120,7 +122,28 @@ export default function App() {
   return (
     <>
       <StatusBar style="auto" />
-      {showLogin ? (
+      {/* デバッグ用テストボタン（Webのみ） */}
+      {__DEV__ && Platform.OS === 'web' && !showTest && (
+        <View style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000 }}>
+          <TouchableOpacity 
+            onPress={() => setShowTest(true)}
+            style={{ backgroundColor: 'red', padding: 10, borderRadius: 5 }}
+          >
+            <Text style={{ color: 'white' }}>TEST</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {showTest ? (
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity 
+            onPress={() => setShowTest(false)}
+            style={{ padding: 20, backgroundColor: '#f0f0f0' }}
+          >
+            <Text>← 戻る</Text>
+          </TouchableOpacity>
+          <TestScreen />
+        </View>
+      ) : showLogin ? (
         <LoginScreen 
           onLoginSuccess={handleLoginSuccess}
           onSwitchToSignup={handleSwitchToSignup}
