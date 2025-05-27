@@ -55,7 +55,7 @@ describe('認証フロー統合テスト', () => {
 
   describe('サインアップフロー', () => {
     it('オンボーディング → ゲスト体験 → 登録画面 → 認証コード入力 → 完了', async () => {
-      const { getByText, getAllByText, getByPlaceholderText, getAllByAccessibilityLabel } = render(<App />);
+      const { getByText, getAllByText, getByPlaceholderText, getAllByAccessibilityLabel } = render(<App /> as React.ReactElement);
 
       // 1. オンボーディング画面
       await waitFor(() => {

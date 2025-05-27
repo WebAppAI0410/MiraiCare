@@ -38,6 +38,12 @@ jest.mock('firebase/app', () => ({
 jest.mock('firebase/auth', () => ({
   getAuth: jest.fn(() => ({
     currentUser: null,
+    onAuthStateChanged: jest.fn((callback) => {
+      // 初期状態でコールバックを呼ぶ
+      callback(null);
+      // unsubscribe関数を返す
+      return jest.fn();
+    }),
   })),
   signInWithEmailAndPassword: jest.fn(),
   createUserWithEmailAndPassword: jest.fn(),

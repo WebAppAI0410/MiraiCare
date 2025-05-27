@@ -72,10 +72,11 @@ export type RootStackParamList = {
   Main: undefined;
   Home: undefined;
   Activity: undefined;
-  Reminders: undefined;
+  Reminder: undefined;
   Badges: undefined;
   Settings: undefined;
   MoodMirror: undefined;
+  NotificationSettings: undefined;
   Reminiscence: undefined;
   CBTCoach: undefined;
 };

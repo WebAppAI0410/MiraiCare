@@ -58,8 +58,9 @@ service cloud.firestore {
     
     // バイタルデータコレクション
     match /vitalData/{docId} {
-      allow read: if isResourceOwner() || 
-                     (isAuthenticated() && !exists(/databases/$(database)/documents/vitalData/$(docId)));
+      // 認証済みユーザーは自分のデータを読み取り可能
+      allow read: if isAuthenticated() && 
+                     (resource == null || resource.data.userId == request.auth.uid);
       
       allow create: if isNewResourceOwner() &&
                       request.resource.data.keys().hasAll(['userId', 'timestamp']) &&
@@ -82,8 +83,9 @@ service cloud.firestore {
     
     // ムードデータコレクション
     match /moodData/{docId} {
-      allow read: if isResourceOwner() || 
-                     (isAuthenticated() && !exists(/databases/$(database)/documents/moodData/$(docId)));
+      // 認証済みユーザーは自分のデータを読み取り可能
+      allow read: if isAuthenticated() && 
+                     (resource == null || resource.data.userId == request.auth.uid);
       
       allow create: if isNewResourceOwner() &&
                       request.resource.data.keys().hasAll(['userId', 'mood', 'timestamp']) &&

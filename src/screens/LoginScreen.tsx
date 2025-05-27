@@ -14,7 +14,10 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Colors, FontSizes, TouchTargets, Spacing } from '../types';
-import { signInWithEmail, resetPassword } from '../services/authService';
+import { resetPassword } from '../services/authService';
+import { signInWithEmailFree, resendVerificationEmail } from '../services/authServiceFree';
+import { reload } from 'firebase/auth';
+import { auth } from '../config/firebase';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -46,26 +49,49 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onSwitchToSig
 
     setIsLoading(true);
     try {
-      await signInWithEmail(email.trim(), password);
-      Alert.alert('ログイン成功', 'MiraiCareへようこそ！', [
-        { text: 'OK', onPress: onLoginSuccess }
-      ]);
+      const result = await signInWithEmailFree(email.trim(), password);
+      
+      if (result.success) {
+        if (result.emailVerified) {
+          Alert.alert('ログイン成功', 'MiraiCareへようこそ！', [
+            { text: 'OK', onPress: onLoginSuccess }
+          ]);
+        } else {
+          Alert.alert(
+            'メール認証が必要です',
+            result.message + '\n\nメールを確認後、もう一度ログインしてください。',
+            [
+              {
+                text: '確認メールを再送信',
+                onPress: async () => {
+                  const resendResult = await resendVerificationEmail();
+                  Alert.alert('確認メール送信', resendResult.message);
+                }
+              },
+              {
+                text: '再度確認',
+                onPress: async () => {
+                  // ユーザー情報を再読み込みして確認
+                  await reload(auth.currentUser!);
+                  if (auth.currentUser?.emailVerified) {
+                    Alert.alert('確認完了', 'メール確認が完了しました！', [
+                      { text: 'OK', onPress: onLoginSuccess }
+                    ]);
+                  } else {
+                    Alert.alert('未確認', 'まだメール確認が完了していません。');
+                  }
+                }
+              },
+              { text: 'キャンセル' }
+            ]
+          );
+        }
+      } else {
+        Alert.alert('ログインエラー', result.message);
+      }
     } catch (error) {
       console.error('Login error:', error);
-      const firebaseError = error as any;
-      let errorMessage = 'ログインに失敗しました。';
-      
-      if (firebaseError.code === 'auth/user-not-found') {
-        errorMessage = 'このメールアドレスは登録されていません。';
-      } else if (firebaseError.code === 'auth/wrong-password' || firebaseError.code === 'auth/invalid-credential') {
-        errorMessage = 'パスワードが正しくありません。';
-      } else if (firebaseError.code === 'auth/invalid-email') {
-        errorMessage = 'メールアドレスの形式が正しくありません。';
-      } else if (firebaseError.message) {
-        errorMessage = firebaseError.message;
-      }
-      
-      Alert.alert('ログインエラー', errorMessage);
+      Alert.alert('ログインエラー', '予期しないエラーが発生しました。');
     } finally {
       setIsLoading(false);
     }

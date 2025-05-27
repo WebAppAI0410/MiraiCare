@@ -3,11 +3,17 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import LoginScreen from '../../src/screens/LoginScreen';
 import * as authService from '../../src/services/authService';
+import * as authServiceFree from '../../src/services/authServiceFree';
 
 // authServiceをモック
 jest.mock('../../src/services/authService', () => ({
-  signInWithEmail: jest.fn(),
   resetPassword: jest.fn(),
+}));
+
+// authServiceFreeをモック
+jest.mock('../../src/services/authServiceFree', () => ({
+  signInWithEmailFree: jest.fn(),
+  resendVerificationEmail: jest.fn(),
 }));
 
 // Alertをモック
@@ -102,9 +108,11 @@ describe('LoginScreen', () => {
       <LoginScreen {...defaultProps} />
     );
 
-    // authServiceのモックを設定
-    (authService.signInWithEmail as jest.Mock).mockResolvedValue({
-      user: { id: '1', email: 'test@example.com' },
+    // authServiceFreeのモックを設定
+    (authServiceFree.signInWithEmailFree as jest.Mock).mockResolvedValue({
+      success: true,
+      emailVerified: true,
+      message: 'ログインに成功しました。',
     });
 
     const emailInput = getByLabelText('メールアドレス入力');
@@ -117,18 +125,14 @@ describe('LoginScreen', () => {
     fireEvent.press(loginButton);
 
     await waitFor(() => {
-      expect(authService.signInWithEmail).toHaveBeenCalledWith(
+      expect(authServiceFree.signInWithEmailFree).toHaveBeenCalledWith(
         'test@example.com',
         'password123'
       );
     });
 
     await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'ログイン成功',
-        'MiraiCareへようこそ！',
-        expect.any(Array)
-      );
+      expect(mockOnLoginSuccess).toHaveBeenCalled();
     });
   });
 
@@ -137,10 +141,11 @@ describe('LoginScreen', () => {
       <LoginScreen {...defaultProps} />
     );
 
-    // authServiceのモックを設定（エラーを投げる）
-    (authService.signInWithEmail as jest.Mock).mockRejectedValue(
-      new Error('Invalid credentials')
-    );
+    // authServiceFreeのモックを設定（失敗を返す）
+    (authServiceFree.signInWithEmailFree as jest.Mock).mockResolvedValue({
+      success: false,
+      message: 'Invalid credentials'
+    });
 
     const emailInput = getByLabelText('メールアドレス入力');
     const passwordInput = getByLabelText('パスワード入力');

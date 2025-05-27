@@ -14,19 +14,16 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Colors, FontSizes, TouchTargets, Spacing } from '../types';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { signUpWithEmailFree } from '../services/authServiceFree';
 import { debugLog, debugError } from '../utils/debug';
 import { webTouchableOpacityFix, webScrollViewFix, webTextInputFix } from '../utils/platform-fixes';
 
 interface SignupScreenProps {
   onSignupSuccess: () => void;
   onSwitchToLogin: () => void;
-  onProceedToVerification: (email: string) => void;
 }
 
-const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchToLogin, onProceedToVerification }) => {
-  const functions = getFunctions();
-  const sendVerificationCode = httpsCallable(functions, 'sendVerificationCode');
+const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchToLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -73,10 +70,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
 
   const handleSignup = async () => {
     debugLog('SignupScreen', 'Signup button pressed');
-    console.log('Signup button pressed');
     if (!validateInput()) {
       debugLog('SignupScreen', 'Validation failed');
-      console.log('Validation failed');
       return;
     }
 
@@ -84,60 +79,32 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
     debugLog('SignupScreen', 'Starting signup process', { email: email.trim() });
     
     try {
-      // ユーザー情報を一時保存（グローバルステートまたはAsyncStorageに）
-      // TODO: AsyncStorageへの保存を実装
-      global.tempUserData = {
-        email: email.trim(),
+      // 無料の認証方法を使用してサインアップ
+      const result = await signUpWithEmailFree(
+        email.trim(),
         password,
-        fullName: fullName.trim(),
-      };
-      
-      // 認証コードを送信
-      debugLog('SignupScreen', 'Calling sendVerificationCode');
-      console.log('Sending verification code to:', email.trim());
-      
-      const result = await sendVerificationCode({ email: email.trim(), action: 'signup' });
-      debugLog('SignupScreen', 'sendVerificationCode result', result);
-      
-      Alert.alert(
-        '認証コードを送信しました',
-        `${email.trim()} 宛てに6桁の認証コードを送信しました。`,
-        [
-          {
-            text: '次へ',
-            onPress: () => onProceedToVerification(email.trim())
-          }
-        ],
-        { cancelable: false }
+        fullName.trim()
       );
+      
+      if (result.success) {
+        Alert.alert(
+          '確認メールを送信しました',
+          result.message,
+          [
+            {
+              text: '確認',
+              onPress: () => onSwitchToLogin()
+            }
+          ],
+          { cancelable: false }
+        );
+      } else {
+        Alert.alert('登録エラー', result.message);
+      }
     } catch (error) {
       debugError('SignupScreen', error);
       console.error('Signup error:', error);
-      const firebaseError = error as any;
-      let errorMessage = '登録に失敗しました。';
-      
-      if (firebaseError.code) {
-        switch (firebaseError.code) {
-          case 'auth/email-already-in-use':
-            errorMessage = 'このメールアドレスは既に使用されています。';
-            break;
-          case 'auth/weak-password':
-            errorMessage = 'パスワードが弱すぎます。よ6文字以上で設定してください。';
-            break;
-          case 'auth/invalid-email':
-            errorMessage = 'メールアドレスの形式が正しくありません。';
-            break;
-          case 'auth/network-request-failed':
-            errorMessage = 'ネットワークエラーです。インターネット接続を確認してください。';
-            break;
-          default:
-            errorMessage = `エラー: ${firebaseError.code}\n${firebaseError.message}`;
-        }
-      } else {
-        errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました。';
-      }
-      
-      Alert.alert('登録エラー', errorMessage);
+      Alert.alert('登録エラー', '予期しないエラーが発生しました。');
     } finally {
       setIsLoading(false);
     }

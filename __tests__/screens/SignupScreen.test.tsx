@@ -2,12 +2,11 @@ import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import SignupScreen from '../../src/screens/SignupScreen';
-import { getFunctions } from 'firebase/functions';
+import * as authServiceFree from '../../src/services/authServiceFree';
 
-// Firebase Functionsのモック
-jest.mock('firebase/functions', () => ({
-  getFunctions: jest.fn(),
-  httpsCallable: jest.fn(() => jest.fn()),
+// authServiceFreeのモック
+jest.mock('../../src/services/authServiceFree', () => ({
+  signUpWithEmailFree: jest.fn(),
 }));
 
 // Alertのモック
@@ -21,10 +20,6 @@ describe('SignupScreen', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
-    // httpsCallableのモックを設定
-    const { httpsCallable } = require('firebase/functions');
-    httpsCallable.mockReturnValue(mockSendVerificationCode);
   });
 
   const renderComponent = () => {
@@ -131,7 +126,10 @@ describe('SignupScreen', () => {
 
   describe('認証コード送信', () => {
     it('正しい入力で認証コードを送信', async () => {
-      mockSendVerificationCode.mockResolvedValue({ data: { success: true } });
+      (authServiceFree.signUpWithEmailFree as jest.Mock).mockResolvedValue({
+        success: true,
+        message: 'test@example.com に確認メールを送信しました。メール内のリンクをクリックしてアカウントを有効化した後、ログインしてください。'
+      });
       
       const { getByPlaceholderText, getByText } = renderComponent();
       
@@ -148,16 +146,17 @@ describe('SignupScreen', () => {
       fireEvent.press(signupButton);
 
       await waitFor(() => {
-        expect(mockSendVerificationCode).toHaveBeenCalledWith({
-          email: 'test@example.com',
-          action: 'signup'
-        });
+        expect(authServiceFree.signUpWithEmailFree).toHaveBeenCalledWith(
+          'test@example.com',
+          'password123',
+          'テストユーザー'
+        );
       });
 
       await waitFor(() => {
         expect(Alert.alert).toHaveBeenCalledWith(
-          '認証コードを送信しました',
-          'test@example.com 宛てに6桁の認証コードを送信しました。',
+          '確認メールを送信しました',
+          expect.any(String),
           expect.any(Array),
           { cancelable: false }
         );
@@ -165,7 +164,7 @@ describe('SignupScreen', () => {
     });
 
     it('認証コード送信エラー時にエラーメッセージを表示', async () => {
-      mockSendVerificationCode.mockRejectedValue(new Error('ネットワークエラー'));
+      (authServiceFree.signUpWithEmailFree as jest.Mock).mockRejectedValue(new Error('ネットワークエラー'));
       
       const { getByPlaceholderText, getByText } = renderComponent();
       
@@ -201,7 +200,10 @@ describe('SignupScreen', () => {
     });
 
     it('認証コード送信成功後に認証画面へ遷移', async () => {
-      mockSendVerificationCode.mockResolvedValue({ data: { success: true } });
+      (authServiceFree.signUpWithEmailFree as jest.Mock).mockResolvedValue({
+        success: true,
+        message: 'test@example.com に確認メールを送信しました。'
+      });
       
       const { getByPlaceholderText, getByText } = renderComponent();
       
@@ -226,7 +228,7 @@ describe('SignupScreen', () => {
       const buttons = alertCall[2];
       buttons[0].onPress();
 
-      expect(mockOnProceedToVerification).toHaveBeenCalledWith('test@example.com');
+      expect(mockOnSwitchToLogin).toHaveBeenCalled();
     });
   });
 

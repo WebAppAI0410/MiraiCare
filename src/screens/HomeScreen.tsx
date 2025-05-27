@@ -264,7 +264,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleMedicationCheck = () => {
-    navigation.navigate('Reminders');
+    navigation.navigate('Reminder');
   };
 
   const handleBadgePress = () => {
