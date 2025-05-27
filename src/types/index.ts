@@ -53,6 +53,73 @@ export interface UserSettings {
   activityLevel?: 'low' | 'moderate' | 'high'; // 活動レベル
 }
 
+// リスクレベルの型定義
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+// リスクスコアの型定義
+export interface RiskScore {
+  level: RiskLevel;
+  score: number; // 0-100
+  factors: string[]; // リスク要因のリスト
+  lastUpdated: string; // ISO 8601形式
+}
+
+// 転倒リスクの型定義
+export interface FallRisk {
+  type: 'fall';
+  level: RiskLevel;
+  score: number;
+  factors: string[];
+  lastUpdated: string;
+  indicators: {
+    stepDecline: boolean; // 歩数の減少
+    irregularPattern: boolean; // 不規則な活動パターン
+    lowActivity: boolean; // 活動量低下
+    consistencyScore: number; // 活動の一貫性スコア（0-100）
+  };
+}
+
+// フレイルリスクの型定義
+export interface FrailtyRisk {
+  type: 'frailty';
+  level: RiskLevel;
+  score: number;
+  factors: string[];
+  lastUpdated: string;
+  indicators: {
+    weeklyAverage: number; // 週間平均歩数
+    monthlyTrend: 'improving' | 'stable' | 'declining'; // 月間トレンド
+    activityDays: number; // 過去7日間の活動日数
+    goalAchievementRate: number; // 目標達成率（%）
+  };
+}
+
+// メンタルヘルスリスクの型定義
+export interface MentalHealthRisk {
+  type: 'mental';
+  level: RiskLevel;
+  score: number;
+  factors: string[];
+  lastUpdated: string;
+  indicators: {
+    moodScore: number; // 気分スコア（0-100）
+    socialActivity: 'high' | 'moderate' | 'low'; // 社会活動レベル
+    engagementLevel: number; // アプリ利用率（0-100）
+  };
+}
+
+// 総合リスク評価の型定義
+export interface OverallRiskAssessment {
+  userId: string;
+  assessmentDate: string; // ISO 8601形式
+  fallRisk: FallRisk;
+  frailtyRisk: FrailtyRisk;
+  mentalHealthRisk: MentalHealthRisk;
+  overallLevel: RiskLevel; // 総合リスクレベル
+  recommendations: string[]; // 改善提案
+  nextAssessmentDate: string; // 次回評価予定日
+}
+
 // 気分データの型定義
 export interface MoodData {
   id: string;
@@ -64,17 +131,6 @@ export interface MoodData {
   createdAt: string;
 }
 
-// リスクレベル
-export type RiskLevel = 'low' | 'medium' | 'high';
-
-// リスクスコア
-export interface RiskScore {
-  overall: RiskLevel;
-  fallRisk: RiskLevel;
-  frailtyRisk: RiskLevel;
-  mentalHealthRisk: RiskLevel;
-  lastUpdated: string;
-}
 
 // バッジ
 export interface Badge {

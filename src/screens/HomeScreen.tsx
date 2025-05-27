@@ -19,8 +19,12 @@ import {
   getTodayVitalData, 
   getUserBadges, 
   getTodayMoodData,
-  getUserReminders 
+  getUserReminders,
+  getLatestRiskAssessment,
+  getUserVitalHistory
 } from '../services/firestoreService';
+import { riskCalculationService } from '../services/riskCalculationService';
+import { pedometerService } from '../services/pedometerService';
 
 const { width } = Dimensions.get('window');
 
@@ -181,20 +185,20 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
-      // バイタルデータ（歩数）の取得
-      const vitalData = await getTodayVitalData(currentUser.uid);
-      if (vitalData) {
-        setStepsData({ current: vitalData.steps, target: 5000 });
-        
-        // リスクレベルの計算（簡易版）
-        if (vitalData.steps >= 4000) {
-          setRiskLevel('low');
-        } else if (vitalData.steps >= 2000) {
-          setRiskLevel('medium');
-        } else {
-          setRiskLevel('high');
-        }
+      // 最新のリスクアセスメントを取得
+      const latestAssessment = await getLatestRiskAssessment(currentUser.uid);
+      
+      if (latestAssessment) {
+        // 最新の評価がある場合は使用
+        setRiskLevel(latestAssessment.overallLevel);
+      } else {
+        // 新規評価を実行
+        await performRiskAssessment(currentUser.uid);
       }
+
+      // バイタルデータ（歩数）の取得
+      const todaySteps = await pedometerService.getTodaySteps();
+      setStepsData({ current: todaySteps, target: 8000 });
 
       // ムードデータの取得
       const moodHistory = await getTodayMoodData(currentUser.uid);
@@ -225,6 +229,58 @@ const HomeScreen: React.FC = () => {
         'データ取得エラー', 
         '最新データの取得に失敗しました。しばらくしてから再度お試しください。'
       );
+    }
+  };
+
+  const performRiskAssessment = async (userId: string) => {
+    try {
+      // 過去7日間と30日間の歩数データを取得
+      const weeklyHistory = await pedometerService.getWeeklyHistory();
+      const monthlyVitals = await getUserVitalHistory(userId, 30);
+      
+      // StepDataに変換
+      const monthlySteps = monthlyVitals.map(vital => ({
+        date: vital.date,
+        steps: vital.steps,
+      }));
+      
+      // アプリ利用日数を計算（過去7日間）
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const recentMoods = await getTodayMoodData(userId);
+      const appUsageDays = new Set(
+        recentMoods
+          .filter(mood => new Date(mood.createdAt) > sevenDaysAgo)
+          .map(mood => new Date(mood.createdAt).toDateString())
+      ).size;
+      
+      // 総合リスク評価を実行
+      const assessment = await riskCalculationService.calculateOverallRisk(
+        userId,
+        weeklyHistory,
+        monthlySteps,
+        8000, // デフォルト目標歩数
+        appUsageDays
+      );
+      
+      // 評価結果を保存
+      await riskCalculationService.saveAssessment(assessment);
+      
+      // UIを更新
+      setRiskLevel(assessment.overallLevel);
+      
+      // 高リスクの場合はアラート表示
+      if (assessment.overallLevel === 'high') {
+        Alert.alert(
+          'リスク評価結果',
+          '健康リスクが高い状態です。' + assessment.recommendations[0],
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('リスク評価エラー:', error);
+      // エラー時はデフォルト値を設定
+      setRiskLevel('medium');
     }
   };
 

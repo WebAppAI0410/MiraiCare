@@ -24,7 +24,8 @@ import {
   Reminder,
   Badge,
   MoodData,
-  UserSettings
+  UserSettings,
+  OverallRiskAssessment
 } from '../types';
 
 /**
@@ -528,5 +529,102 @@ export const updateUserSettings = async (
   } catch (error) {
     console.error('ユーザー設定更新エラー:', error);
     throw new Error('ユーザー設定の更新に失敗しました');
+  }
+};
+
+/**
+ * リスクアセスメントサービス
+ */
+
+/**
+ * リスクアセスメントを保存
+ * @param userId ユーザーID
+ * @param assessment リスクアセスメントデータ
+ * @returns 保存結果
+ */
+export const saveRiskAssessment = async (
+  userId: string,
+  assessment: OverallRiskAssessment
+): Promise<{ id: string; success: boolean }> => {
+  try {
+    const assessmentCollection = collection(db, 'riskAssessments');
+    
+    const docRef = await addDoc(assessmentCollection, {
+      ...assessment,
+      createdAt: serverTimestamp(),
+    });
+    
+    return {
+      id: docRef.id,
+      success: true,
+    };
+  } catch (error) {
+    console.error('リスクアセスメント保存エラー:', error);
+    throw new Error('リスクアセスメントの保存に失敗しました');
+  }
+};
+
+/**
+ * 最新のリスクアセスメントを取得
+ * @param userId ユーザーID
+ * @returns 最新のリスクアセスメント、または存在しない場合はnull
+ */
+export const getLatestRiskAssessment = async (
+  userId: string
+): Promise<OverallRiskAssessment | null> => {
+  try {
+    const assessmentCollection = collection(db, 'riskAssessments');
+    
+    const assessmentQuery = query(
+      assessmentCollection,
+      where('userId', '==', userId),
+      orderBy('assessmentDate', 'desc'),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(assessmentQuery);
+    
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return doc.data() as OverallRiskAssessment;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('リスクアセスメント取得エラー:', error);
+    throw new Error('リスクアセスメントの取得に失敗しました');
+  }
+};
+
+/**
+ * リスクアセスメント履歴を取得
+ * @param userId ユーザーID
+ * @param days 取得する日数（デフォルト: 30日）
+ * @returns リスクアセスメント配列（日付降順）
+ */
+export const getRiskAssessmentHistory = async (
+  userId: string,
+  days: number = 30
+): Promise<OverallRiskAssessment[]> => {
+  try {
+    const assessmentCollection = collection(db, 'riskAssessments');
+    
+    // 指定された日数分の開始日を計算
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const assessmentQuery = query(
+      assessmentCollection,
+      where('userId', '==', userId),
+      where('assessmentDate', '>=', startDate.toISOString()),
+      orderBy('assessmentDate', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(assessmentQuery);
+    
+    return querySnapshot.docs.map(doc => doc.data() as OverallRiskAssessment);
+  } catch (error) {
+    console.error('リスクアセスメント履歴取得エラー:', error);
+    throw new Error('リスクアセスメント履歴の取得に失敗しました');
   }
 };
