@@ -200,8 +200,8 @@ describe('FirestoreService', () => {
   });
 
   describe('VitalData関連', () => {
-    const mockVitalData: VitalData = {
-      userId: 'user123',
+    const mockUserId = 'user123';
+    const mockVitalData: Partial<VitalData> = {
       date: '2024-01-01',
       steps: 5000,
       timestamp: Date.now(),
@@ -216,14 +216,15 @@ describe('FirestoreService', () => {
         (firestore.serverTimestamp as jest.Mock).mockReturnValue('timestamp');
 
         // When: バイタルデータを保存
-        const result = await saveVitalData(mockVitalData);
+        const result = await saveVitalData(mockUserId, mockVitalData);
 
         // Then: 正しく保存される
-        expect(result).toBe('vital123');
+        expect(result).toEqual({ id: 'vital123', success: true });
         expect(firestore.collection).toHaveBeenCalledWith({}, 'vitalData');
         expect(firestore.addDoc).toHaveBeenCalledWith(
           'mock-collection',
           expect.objectContaining({
+            userId: mockUserId,
             ...mockVitalData,
             createdAt: 'timestamp',
           })
@@ -236,7 +237,7 @@ describe('FirestoreService', () => {
         (firestore.collection as jest.Mock).mockReturnValue('mock-collection');
 
         // When & Then: エラーが投げられる
-        await expect(saveVitalData(mockVitalData))
+        await expect(saveVitalData(mockUserId, mockVitalData))
           .rejects
           .toThrow('バイタルデータの保存に失敗しました');
       });
@@ -249,6 +250,7 @@ describe('FirestoreService', () => {
           exists: () => true,
           id: 'vital123',
           data: () => ({
+            userId: mockUserId,
             ...mockVitalData,
             createdAt: { toDate: () => new Date('2024-01-01') }
           }),
@@ -262,6 +264,7 @@ describe('FirestoreService', () => {
         // Then: 正しく取得される
         expect(result).toEqual({ 
           id: 'vital123', 
+          userId: mockUserId,
           ...mockVitalData,
           createdAt: new Date('2024-01-01')
         });

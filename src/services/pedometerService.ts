@@ -1,10 +1,15 @@
 import * as Pedometer from 'expo-sensors/build/Pedometer';
 import { Alert } from 'react-native';
 import { StepData, VitalData } from '../types';
-import { firestoreService } from './firestoreService';
+import { saveVitalData, updateUserSettings } from './firestoreService';
 
 class PedometerService {
   private watchSubscription: Pedometer.Subscription | null = null;
+  private weeklyHistoryCache: { data: StepData[] | null; timestamp: number } = {
+    data: null,
+    timestamp: 0,
+  };
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5分間のキャッシュ
 
   /**
    * 歩数計が利用可能かチェック
@@ -58,6 +63,15 @@ class PedometerService {
    * 過去7日間の歩数履歴を取得
    */
   async getWeeklyHistory(): Promise<StepData[]> {
+    // キャッシュが有効な場合は返す
+    const now = Date.now();
+    if (
+      this.weeklyHistoryCache.data && 
+      now - this.weeklyHistoryCache.timestamp < this.CACHE_DURATION
+    ) {
+      return this.weeklyHistoryCache.data;
+    }
+
     const history: StepData[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -86,6 +100,12 @@ class PedometerService {
         });
       }
     }
+
+    // キャッシュを更新
+    this.weeklyHistoryCache = {
+      data: history,
+      timestamp: Date.now(),
+    };
 
     return history;
   }
@@ -126,14 +146,14 @@ class PedometerService {
       measuredAt: new Date().toISOString(),
     };
 
-    await firestoreService.saveVitalData(userId, vitalData);
+    await saveVitalData(userId, vitalData);
   }
 
   /**
    * 歩数目標を設定
    */
   async setStepTarget(userId: string, target: number): Promise<void> {
-    await firestoreService.updateUserSettings(userId, {
+    await updateUserSettings(userId, {
       stepTarget: target,
     });
   }
@@ -145,6 +165,16 @@ class PedometerService {
     if (target === 0) return 0;
     const rate = (current / target) * 100;
     return Math.min(rate, 100);
+  }
+
+  /**
+   * キャッシュをクリア
+   */
+  clearCache(): void {
+    this.weeklyHistoryCache = {
+      data: null,
+      timestamp: 0,
+    };
   }
 
   /**

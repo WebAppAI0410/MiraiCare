@@ -8,6 +8,7 @@ export interface User {
   birthDate?: string;
   emergencyContact?: string;
   lineNotifyToken?: string;
+  emailVerified?: boolean;
   createdAt: string;
   updatedAt: string;
 }

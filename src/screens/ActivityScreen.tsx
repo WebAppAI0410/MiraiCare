@@ -25,6 +25,15 @@ interface BarChartProps {
 }
 
 const BarChart: React.FC<BarChartProps> = ({ data, height }) => {
+  // データが空の場合の処理
+  if (data.length === 0) {
+    return (
+      <View style={[styles.chartContainer, { height, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={styles.emptyChartText}>データがありません</Text>
+      </View>
+    );
+  }
+  
   const maxSteps = Math.max(...data.map(d => d.steps), 10000); // 最小値10000歩
   const chartWidth = width - 80;
   const barWidth = (chartWidth / data.length) - 10;
@@ -536,6 +545,10 @@ const styles = StyleSheet.create({
   todayLabel: {
     fontWeight: 'bold',
     color: Colors.accent,
+  },
+  emptyChartText: {
+    fontSize: FontSizes.medium,
+    color: Colors.textSecondary,
   },
 });
 

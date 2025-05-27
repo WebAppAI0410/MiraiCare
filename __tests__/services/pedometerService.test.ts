@@ -5,10 +5,8 @@ import { Alert } from 'react-native';
 // モックの設定
 jest.mock('expo-sensors/build/Pedometer');
 jest.mock('../../src/services/firestoreService', () => ({
-  firestoreService: {
-    saveVitalData: jest.fn(),
-    updateUserSettings: jest.fn(),
-  },
+  saveVitalData: jest.fn(),
+  updateUserSettings: jest.fn(),
 }));
 jest.spyOn(Alert, 'alert');
 
@@ -132,15 +130,15 @@ describe('PedometerService', () => {
       const userId = 'test-user-id';
       const steps = 5000;
       
-      const { firestoreService } = require('../../src/services/firestoreService');
-      (firestoreService.saveVitalData as jest.Mock).mockResolvedValue({
+      const { saveVitalData } = require('../../src/services/firestoreService');
+      (saveVitalData as jest.Mock).mockResolvedValue({
         id: 'vital-data-id',
         success: true,
       });
       
       await pedometerService.saveTodaySteps(userId, steps);
       
-      expect(firestoreService.saveVitalData).toHaveBeenCalledWith(
+      expect(saveVitalData).toHaveBeenCalledWith(
         userId,
         expect.objectContaining({
           type: 'steps',
@@ -151,8 +149,8 @@ describe('PedometerService', () => {
     });
 
     it('歩数保存エラー時にエラーをスローする', async () => {
-      const { firestoreService } = require('../../src/services/firestoreService');
-      (firestoreService.saveVitalData as jest.Mock).mockRejectedValue(
+      const { saveVitalData } = require('../../src/services/firestoreService');
+      (saveVitalData as jest.Mock).mockRejectedValue(
         new Error('Save failed')
       );
       
@@ -167,14 +165,14 @@ describe('PedometerService', () => {
       const userId = 'test-user-id';
       const target = 8000;
       
-      const { firestoreService } = require('../../src/services/firestoreService');
-      (firestoreService.updateUserSettings as jest.Mock).mockResolvedValue({
+      const { updateUserSettings } = require('../../src/services/firestoreService');
+      (updateUserSettings as jest.Mock).mockResolvedValue({
         success: true,
       });
       
       await pedometerService.setStepTarget(userId, target);
       
-      expect(firestoreService.updateUserSettings).toHaveBeenCalledWith(
+      expect(updateUserSettings).toHaveBeenCalledWith(
         userId,
         { stepTarget: target }
       );

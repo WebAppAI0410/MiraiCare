@@ -26,8 +26,10 @@ export default function TestScreen() {
     // Firestore の接続を確認
     try {
       addStatus('Firestore接続テスト中...');
-      const testDoc = await db.collection('test').doc('test').get();
-      addStatus(`Firestore: ${testDoc.exists ? '接続成功' : '接続成功（ドキュメントなし）'}`);
+      const { doc, getDoc } = require('firebase/firestore');
+      const testDocRef = doc(db, 'test', 'test');
+      const testDoc = await getDoc(testDocRef);
+      addStatus(`Firestore: ${testDoc.exists() ? '接続成功' : '接続成功（ドキュメントなし）'}`);
     } catch (error) {
       addStatus(`Firestore Error: ${error}`);
     }
