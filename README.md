@@ -18,6 +18,8 @@ MiraiCare 360は、高齢者本人に転倒・フレイル・メンタルヘル�
 
 - **フロントエンド**: React Native (Expo) + TypeScript
 - **バックエンド**: Firebase (Firestore + Auth + Cloud Functions + Storage)
+- **認証方式**: 6桁認証コード（メール送信）
+- **メール送信**: Nodemailer (Gmail/SendGrid対応)
 - **通知**: Firebase Cloud Messaging + LINE Notify
 - **AI**: OpenAI GPT-4o API
 - **デプロイ**: Expo EAS Build
@@ -52,7 +54,18 @@ android/app/google-services.json
 ios/GoogleService-Info.plist
 ```
 
-4. 開発サーバーを起動
+4. Firebase Functionsの設定
+```bash
+cd functions
+cp .env.example .env
+# .envファイルを編集してメール送信設定を追加
+# EMAIL_USER=your-email@gmail.com
+# EMAIL_PASSWORD=your-app-specific-password
+npm install
+npm run build
+```
+
+5. 開発サーバーを起動
 ```bash
 npm start
 ```
@@ -69,6 +82,32 @@ npm run android
 # Web
 npm run web
 ```
+
+## Firebase Functionsデプロイ
+
+```bash
+cd functions
+# Firebase CLIがインストールされていることを確認
+npm install -g firebase-tools
+
+# Firebaseにログイン
+firebase login
+
+# Functionsをデプロイ
+firebase deploy --only functions
+```
+
+### メール送信設定
+
+#### Gmailを使用する場合
+1. Googleアカウントで2段階認証を有効化
+2. アプリパスワードを生成
+3. .envファイルにEMAIL_USERとEMAIL_PASSWORDを設定
+
+#### SendGridを使用する場合
+1. SendGridアカウントを作成
+2. APIキーを生成
+3. .envファイルにSENDGRID_API_KEYを設定
 
 ## プロジェクト構成
 
