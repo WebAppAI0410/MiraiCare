@@ -1,79 +1,72 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  RefreshControl,
   Dimensions,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Colors, VitalData, RiskLevel } from '../types';
+import { Colors, StepData, FontSizes, Spacing, TouchTargets } from '../types';
 import i18n from '../config/i18n';
 import { auth } from '../config/firebase';
-import { getUserVitalHistory } from '../services/firestoreService';
+import { pedometerService } from '../services/pedometerService';
+import * as Pedometer from 'expo-sensors/build/Pedometer';
 
 const { width } = Dimensions.get('window');
 
-interface DailyData {
-  date: string;
-  steps: number;
-  distance: number;
-  calories: number;
-  heartRate?: number;
-}
-
-interface WeeklyStats {
-  totalSteps: number;
-  avgSteps: number;
-  totalDistance: number;
-  totalCalories: number;
-}
-
 interface BarChartProps {
-  data: DailyData[];
+  data: StepData[];
   height: number;
 }
 
 const BarChart: React.FC<BarChartProps> = ({ data, height }) => {
-  const maxSteps = Math.max(...data.map(d => d.steps));
-  const chartWidth = width - 60;
-  const barWidth = chartWidth / data.length - 8;
+  const maxSteps = Math.max(...data.map(d => d.steps), 10000); // 最小値10000歩
+  const chartWidth = width - 80;
+  const barWidth = (chartWidth / data.length) - 10;
 
   return (
     <View style={[styles.chartContainer, { height }]}>
       <View style={styles.chartContent}>
         {data.map((item, index) => {
-          const barHeight = maxSteps > 0 ? (item.steps / maxSteps) * (height - 60) : 0;
+          const barHeight = maxSteps > 0 ? (item.steps / maxSteps) * (height - 80) : 0;
+          const dateObj = new Date(item.date);
+          const isToday = new Date().toDateString() === dateObj.toDateString();
           
           return (
-            <View key={index} style={styles.barContainer}>
+            <View 
+              key={index} 
+              style={styles.barContainer}
+              testID={`step-bar-${index}`}
+            >
+              <Text style={styles.barValue}>
+                {item.steps.toLocaleString()}
+              </Text>
               <View 
                 style={[
                   styles.bar, 
                   { 
                     height: barHeight, 
                     width: barWidth,
-                    backgroundColor: item.steps >= 4000 ? Colors.success : Colors.primary 
+                    backgroundColor: isToday ? Colors.accent : 
+                                   item.steps >= 8000 ? Colors.success : 
+                                   Colors.primary 
                   }
                 ]} 
               />
-              <Text style={styles.barValue}>{item.steps}</Text>
-              <Text style={styles.barLabel}>
-                {new Date(item.date).toLocaleDateString('ja-JP', { weekday: 'short' })}
+              <Text style={[styles.barLabel, isToday && styles.todayLabel]}>
+                {dateObj.toLocaleDateString('ja-JP', { 
+                  month: 'numeric', 
+                  day: 'numeric' 
+                }).replace('月', '/')}
               </Text>
             </View>
           );
         })}
-      </View>
-      
-      {/* Y軸ラベル */}
-      <View style={styles.yAxisLabels}>
-        <Text style={styles.axisLabel}>{maxSteps}</Text>
-        <Text style={styles.axisLabel}>{Math.round(maxSteps / 2)}</Text>
-        <Text style={styles.axisLabel}>0</Text>
       </View>
     </View>
   );
@@ -88,287 +81,249 @@ interface StatsCardProps {
 }
 
 const StatsCard: React.FC<StatsCardProps> = ({ title, value, subtitle, icon, color }) => (
-  <View style={[styles.statsCard, { borderColor: color }]}>
+  <View style={[styles.statsCard, { borderLeftColor: color }]}>
     <Text style={styles.statsIcon}>{icon}</Text>
-    <Text style={styles.statsTitle}>{title}</Text>
-    <Text style={[styles.statsValue, { color }]}>{value}</Text>
-    {subtitle && <Text style={styles.statsSubtitle}>{subtitle}</Text>}
+    <View style={styles.statsContent}>
+      <Text style={styles.statsTitle}>{title}</Text>
+      <Text style={[styles.statsValue, { color }]}>{value}</Text>
+      {subtitle && <Text style={styles.statsSubtitle}>{subtitle}</Text>}
+    </View>
   </View>
 );
 
-interface RiskIndicatorProps {
-  level: RiskLevel;
-  type: string;
-}
+const ActivityScreen: React.FC = () => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [todaySteps, setTodaySteps] = useState(0);
+  const [weeklyHistory, setWeeklyHistory] = useState<StepData[]>([]);
+  const [distance, setDistance] = useState(0);
+  const [calories, setCalories] = useState(0);
+  const [weeklyAverage, setWeeklyAverage] = useState(0);
+  const [achievementRate, setAchievementRate] = useState(0);
+  const [stepTarget] = useState(8000); // TODO: ユーザー設定から取得
+  const [permissionGranted, setPermissionGranted] = useState(false);
+  const [isAvailable, setIsAvailable] = useState(true);
+  
+  const watchSubscription = useRef<Pedometer.Subscription | null>(null);
 
-const RiskIndicator: React.FC<RiskIndicatorProps> = ({ level, type }) => {
-  const getRiskColor = (riskLevel: RiskLevel) => {
-    switch (riskLevel) {
-      case 'low': return Colors.success;
-      case 'medium': return Colors.warning;
-      case 'high': return Colors.error;
-      default: return Colors.textSecondary;
+  useEffect(() => {
+    initializePedometer();
+    
+    return () => {
+      // クリーンアップ: 監視を停止
+      if (watchSubscription.current) {
+        watchSubscription.current.remove();
+      }
+    };
+  }, []);
+
+  const initializePedometer = async () => {
+    try {
+      // 歩数計の利用可能性をチェック
+      const available = await pedometerService.isAvailable();
+      setIsAvailable(available);
+      
+      if (!available) {
+        setIsLoading(false);
+        return;
+      }
+
+      // パーミッションをリクエスト
+      const permission = await pedometerService.requestPermissions();
+      setPermissionGranted(permission.granted);
+      
+      if (!permission.granted) {
+        Alert.alert(
+          'パーミッションが必要です',
+          '歩数を計測するには、モーションセンサーへのアクセス許可が必要です。',
+          [
+            { text: 'キャンセル', style: 'cancel' },
+            { text: '設定を開く', onPress: () => console.log('設定を開く') }
+          ]
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // データを読み込み
+      await loadStepData();
+      
+      // リアルタイム監視を開始
+      startWatchingSteps();
+    } catch (error) {
+      console.error('歩数計の初期化エラー:', error);
+      Alert.alert(
+        'エラー',
+        '歩数計の初期化に失敗しました。',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getRiskLabel = (riskLevel: RiskLevel) => {
-    return i18n.t(`home.riskLevels.${riskLevel}`);
-  };
-
-  return (
-    <View style={styles.riskIndicator}>
-      <Text style={styles.riskType}>{type}</Text>
-      <View style={[styles.riskBadge, { backgroundColor: getRiskColor(level) }]}>
-        <Text style={styles.riskBadgeText}>{getRiskLabel(level)}</Text>
-      </View>
-    </View>
-  );
-};
-
-const ActivityScreen: React.FC = () => {
-  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>('week');
-  const [weeklyData, setWeeklyData] = useState<DailyData[]>([]);
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyStats>({
-    totalSteps: 0,
-    avgSteps: 0,
-    totalDistance: 0,
-    totalCalories: 0,
-  });
-  const [currentRisks, setCurrentRisks] = useState({
-    fall: 'medium' as RiskLevel,
-    frailty: 'low' as RiskLevel,
-    mental: 'medium' as RiskLevel,
-  });
-
-  useEffect(() => {
-    loadActivityData();
-  }, [selectedPeriod]);
-
-  const loadActivityData = async () => {
+  const loadStepData = async () => {
     try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        console.log('No authenticated user');
-        return;
-      }
-
-      // 選択された期間に基づいてデータを取得
-      const days = selectedPeriod === 'week' ? 7 : 30;
-      const vitalHistory = await getUserVitalHistory(currentUser.uid, days);
-
-      // データをDailyData形式に変換
-      const dailyDataMap = new Map<string, DailyData>();
+      // 今日の歩数を取得
+      const steps = await pedometerService.getTodaySteps();
+      setTodaySteps(steps);
       
-      vitalHistory.forEach(vital => {
-        const date = vital.date;
-        if (!dailyDataMap.has(date)) {
-          dailyDataMap.set(date, {
-            date,
-            steps: vital.steps,
-            distance: Math.round(vital.steps * 0.00075 * 10) / 10, // 歩数から距離を推定 (1歩 = 0.75m)
-            calories: Math.round(vital.steps * 0.05), // 歩数からカロリーを推定
-          });
-        }
-      });
-
-      // 日付でソートして配列に変換
-      const sortedData = Array.from(dailyDataMap.values())
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      // データがない場合はダミーデータを生成
-      if (sortedData.length === 0) {
-        const today = new Date();
-        const dummyData: DailyData[] = [];
-        for (let i = days - 1; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(date.getDate() - i);
-          dummyData.push({
-            date: date.toISOString().split('T')[0],
-            steps: 0,
-            distance: 0,
-            calories: 0,
-          });
-        }
-        setWeeklyData(dummyData);
-        setWeeklyStats({
-          totalSteps: 0,
-          avgSteps: 0,
-          totalDistance: 0,
-          totalCalories: 0,
-        });
-        return;
+      // 週間履歴を取得
+      const history = await pedometerService.getWeeklyHistory();
+      setWeeklyHistory(history);
+      
+      // 統計情報を計算
+      const dist = pedometerService.calculateDistance(steps);
+      const cal = pedometerService.calculateCalories(steps);
+      const avg = pedometerService.calculateWeeklyAverage(history);
+      const rate = pedometerService.calculateAchievementRate(steps, stepTarget);
+      
+      setDistance(dist);
+      setCalories(cal);
+      setWeeklyAverage(avg);
+      setAchievementRate(rate);
+      
+      // 目標達成時の通知
+      if (rate >= 100 && steps > 0) {
+        pedometerService.showAchievementAlert();
       }
-
-      setWeeklyData(sortedData);
-
-      // 統計計算
-      const totalSteps = sortedData.reduce((sum, day) => sum + day.steps, 0);
-      const totalDistance = sortedData.reduce((sum, day) => sum + day.distance, 0);
-      const totalCalories = sortedData.reduce((sum, day) => sum + day.calories, 0);
-
-      setWeeklyStats({
-        totalSteps,
-        avgSteps: Math.round(totalSteps / sortedData.length),
-        totalDistance: Math.round(totalDistance * 10) / 10,
-        totalCalories,
-      });
-
     } catch (error) {
-      console.error('活動データの取得エラー:', error);
+      console.error('歩数データの読み込みエラー:', error);
       Alert.alert(
         'データ取得エラー',
-        '活動データの取得に失敗しました。',
+        '歩数データの取得に失敗しました。',
         [{ text: 'OK' }]
       );
     }
   };
 
-  const getPeriodLabel = () => {
-    return selectedPeriod === 'week' ? '今週' : '今月';
+  const startWatchingSteps = async () => {
+    try {
+      watchSubscription.current = await pedometerService.startWatching((result) => {
+        // リアルタイムで歩数を更新
+        setTodaySteps(prevSteps => prevSteps + result.steps);
+      });
+    } catch (error) {
+      console.error('歩数監視の開始エラー:', error);
+    }
   };
 
-  const getGoalAchievementRate = () => {
-    const goal = 4000; // 1日の目標歩数
-    const achievedDays = weeklyData.filter(day => day.steps >= goal).length;
-    return weeklyData.length > 0 ? Math.round((achievedDays / weeklyData.length) * 100) : 0;
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadStepData();
+    setRefreshing(false);
   };
+
+  if (!isAvailable) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorIcon}>🚫</Text>
+          <Text style={styles.errorTitle}>歩数計が利用できません</Text>
+          <Text style={styles.errorMessage}>
+            このデバイスは歩数計測に対応していません。
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>読み込み中...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="light" backgroundColor={Colors.primary} />
-      
-      {/* ヘッダー */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>活動詳細</Text>
-        <View style={styles.periodSelector}>
-          <TouchableOpacity
-            style={[
-              styles.periodButton,
-              selectedPeriod === 'week' && styles.activePeriodButton
-            ]}
-            onPress={() => setSelectedPeriod('week')}
-          >
-            <Text style={[
-              styles.periodButtonText,
-              selectedPeriod === 'week' && styles.activePeriodButtonText
-            ]}>週</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.periodButton,
-              selectedPeriod === 'month' && styles.activePeriodButton
-            ]}
-            onPress={() => setSelectedPeriod('month')}
-          >
-            <Text style={[
-              styles.periodButtonText,
-              selectedPeriod === 'month' && styles.activePeriodButtonText
-            ]}>月</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* 週間サマリー */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{getPeriodLabel()}のサマリー</Text>
-          <View style={styles.statsGrid}>
-            <StatsCard
-              title="総歩数"
-              value={weeklyStats.totalSteps.toLocaleString()}
-              subtitle="歩"
-              icon="👣"
-              color={Colors.primary}
-            />
-            <StatsCard
-              title="平均歩数"
-              value={weeklyStats.avgSteps.toLocaleString()}
-              subtitle="歩/日"
-              icon="📊"
-              color={Colors.secondary}
-            />
-            <StatsCard
-              title="総距離"
-              value={`${weeklyStats.totalDistance}`}
-              subtitle="km"
-              icon="📍"
-              color={Colors.success}
-            />
-            <StatsCard
-              title="消費カロリー"
-              value={weeklyStats.totalCalories.toString()}
-              subtitle="kcal"
-              icon="🔥"
-              color={Colors.warning}
-            />
-          </View>
+      <StatusBar style="dark" backgroundColor={Colors.background} />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
+        }
+        testID="activity-scroll-view"
+      >
+        {/* ヘッダー */}
+        <View style={styles.header}>
+          <Text style={styles.title}>アクティビティ</Text>
+          <Text style={styles.date}>
+            {new Date().toLocaleDateString('ja-JP', { 
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              weekday: 'long'
+            })}
+          </Text>
         </View>
 
-        {/* 目標達成率 */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>目標達成状況</Text>
-          <View style={styles.achievementCard}>
-            <Text style={styles.achievementTitle}>歩数目標達成率</Text>
-            <Text style={styles.achievementValue}>{getGoalAchievementRate()}%</Text>
-            <Text style={styles.achievementSubtitle}>
-              {weeklyData.filter(day => day.steps >= 4000).length} / {weeklyData.length} 日達成
+        {/* 今日の歩数 */}
+        <View style={styles.todayStepsContainer}>
+          <Text style={styles.todayStepsLabel}>今日の歩数</Text>
+          <View style={styles.todayStepsRow}>
+            <Text style={styles.todayStepsValue}>
+              {todaySteps.toLocaleString()}
             </Text>
-            <View style={styles.achievementBar}>
+            <Text style={styles.todayStepsUnit}>歩</Text>
+          </View>
+          
+          {/* 目標達成率 */}
+          <View style={styles.achievementContainer}>
+            <Text style={styles.achievementLabel}>目標達成率</Text>
+            <View style={styles.progressBarContainer}>
               <View 
                 style={[
-                  styles.achievementBarFill, 
-                  { width: `${getGoalAchievementRate()}%` }
-                ]} 
+                  styles.progressBar,
+                  { width: `${Math.min(achievementRate, 100)}%` }
+                ]}
               />
             </View>
+            <Text style={styles.achievementText}>
+              {achievementRate.toFixed(1)}%
+              {achievementRate >= 100 && ' 🎉 目標達成！'}
+            </Text>
           </View>
         </View>
 
-        {/* 歩数グラフ */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>日別歩数</Text>
-          <BarChart data={weeklyData} height={200} />
+        {/* 統計カード */}
+        <View style={styles.statsContainer}>
+          <StatsCard
+            title="推定距離"
+            value={`${distance.toFixed(1)} km`}
+            icon="🚶"
+            color={Colors.primary}
+          />
+          <StatsCard
+            title="消費カロリー"
+            value={`${calories} kcal`}
+            icon="🔥"
+            color={Colors.error}
+          />
         </View>
 
-        {/* リスク指標 */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>現在のリスク指標</Text>
-          <View style={styles.riskContainer}>
-            <RiskIndicator level={currentRisks.fall} type="転倒リスク" />
-            <RiskIndicator level={currentRisks.frailty} type="フレイルリスク" />
-            <RiskIndicator level={currentRisks.mental} type="メンタルヘルス" />
-          </View>
+        {/* 週間統計 */}
+        <View style={styles.weeklyStatsContainer}>
+          <Text style={styles.sectionTitle}>週間統計</Text>
+          <Text style={styles.weeklyAverage}>
+            週間平均: {weeklyAverage.toLocaleString()}歩
+          </Text>
         </View>
 
-        {/* 活動履歴 */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>詳細データ</Text>
-          {weeklyData.map((day, index) => (
-            <View key={index} style={styles.historyItem}>
-              <View style={styles.historyDate}>
-                <Text style={styles.historyDateText}>
-                  {new Date(day.date).toLocaleDateString('ja-JP', {
-                    month: 'short',
-                    day: 'numeric',
-                    weekday: 'short'
-                  })}
-                </Text>
-              </View>
-              <View style={styles.historyData}>
-                <Text style={styles.historySteps}>{day.steps.toLocaleString()} 歩</Text>
-                <Text style={styles.historyDetails}>
-                  {day.distance}km • {day.calories}kcal
-                </Text>
-              </View>
-              <View style={styles.historyStatus}>
-                {day.steps >= 4000 ? (
-                  <Text style={styles.achievedBadge}>達成</Text>
-                ) : (
-                  <Text style={styles.pendingBadge}>未達成</Text>
-                )}
-              </View>
-            </View>
-          ))}
+        {/* 週間グラフ */}
+        <View style={styles.chartSection}>
+          <Text style={styles.sectionTitle}>過去7日間</Text>
+          <BarChart data={weeklyHistory} height={250} />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -380,239 +335,208 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  content: {
+    paddingBottom: Spacing.xxl,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.surface,
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSizes.medium,
+    color: Colors.textSecondary,
   },
-  periodSelector: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    padding: 2,
-  },
-  periodButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 18,
-  },
-  activePeriodButton: {
-    backgroundColor: Colors.surface,
-  },
-  periodButtonText: {
-    fontSize: 14,
-    color: Colors.surface,
-    fontWeight: '500',
-  },
-  activePeriodButtonText: {
-    color: Colors.primary,
-  },
-  content: {
+  errorContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.screenPadding,
   },
-  section: {
-    backgroundColor: Colors.surface,
-    marginBottom: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+  errorIcon: {
+    fontSize: 64,
+    marginBottom: Spacing.lg,
   },
-  sectionTitle: {
-    fontSize: 18,
+  errorTitle: {
+    fontSize: FontSizes.h2,
     fontWeight: 'bold',
     color: Colors.text,
-    marginBottom: 16,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
   },
-  statsGrid: {
+  errorMessage: {
+    fontSize: FontSizes.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  header: {
+    paddingHorizontal: Spacing.screenPadding,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+  },
+  title: {
+    fontSize: FontSizes.h1,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  date: {
+    fontSize: FontSizes.medium,
+    color: Colors.textSecondary,
+  },
+  todayStepsContainer: {
+    backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.screenPadding,
+    padding: Spacing.cardPadding,
+    borderRadius: 16,
+    marginBottom: Spacing.lg,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  todayStepsLabel: {
+    fontSize: FontSizes.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  todayStepsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: Spacing.lg,
+  },
+  todayStepsValue: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: Colors.primary,
+  },
+  todayStepsUnit: {
+    fontSize: FontSizes.large,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.sm,
+  },
+  achievementContainer: {
+    marginTop: Spacing.md,
+  },
+  achievementLabel: {
+    fontSize: FontSizes.small,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: Colors.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: Spacing.xs,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: Colors.success,
+    borderRadius: 4,
+  },
+  achievementText: {
+    fontSize: FontSizes.medium,
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.screenPadding,
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
   },
   statsCard: {
-    width: '48%',
-    backgroundColor: Colors.background,
+    flex: 1,
+    backgroundColor: Colors.surface,
+    padding: Spacing.md,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
-    alignItems: 'center',
+    borderLeftWidth: 4,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   statsIcon: {
     fontSize: 24,
-    marginBottom: 8,
+    marginBottom: Spacing.xs,
+  },
+  statsContent: {
+    flex: 1,
   },
   statsTitle: {
-    fontSize: 14,
+    fontSize: FontSizes.small,
     color: Colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
   },
   statsValue: {
-    fontSize: 20,
+    fontSize: FontSizes.large,
     fontWeight: 'bold',
-    marginBottom: 2,
   },
   statsSubtitle: {
-    fontSize: 12,
+    fontSize: FontSizes.small,
     color: Colors.textSecondary,
+    marginTop: Spacing.xs,
   },
-  achievementCard: {
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
+  weeklyStatsContainer: {
+    paddingHorizontal: Spacing.screenPadding,
+    marginBottom: Spacing.lg,
   },
-  achievementTitle: {
-    fontSize: 16,
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  achievementValue: {
-    fontSize: 32,
+  sectionTitle: {
+    fontSize: FontSizes.h3,
     fontWeight: 'bold',
-    color: Colors.primary,
-    marginBottom: 4,
+    color: Colors.text,
+    marginBottom: Spacing.sm,
   },
-  achievementSubtitle: {
-    fontSize: 14,
+  weeklyAverage: {
+    fontSize: FontSizes.medium,
     color: Colors.textSecondary,
-    marginBottom: 16,
   },
-  achievementBar: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  achievementBarFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 4,
+  chartSection: {
+    paddingHorizontal: Spacing.screenPadding,
   },
   chartContainer: {
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 16,
-    position: 'relative',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   chartContent: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'flex-end',
-    paddingLeft: 30,
+    paddingTop: Spacing.sm,
   },
   barContainer: {
     alignItems: 'center',
+    flex: 1,
   },
   bar: {
     borderRadius: 4,
-    marginBottom: 8,
+    marginVertical: Spacing.xs,
   },
   barValue: {
-    fontSize: 12,
-    color: Colors.text,
-    marginBottom: 4,
-    fontWeight: '500',
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
   },
   barLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: Colors.textSecondary,
+    marginTop: Spacing.xs,
   },
-  yAxisLabels: {
-    position: 'absolute',
-    left: 0,
-    top: 16,
-    bottom: 50,
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingRight: 8,
-  },
-  axisLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  riskContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  riskIndicator: {
-    flex: 1,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  riskType: {
-    fontSize: 14,
-    color: Colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  riskBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  riskBadgeText: {
-    fontSize: 12,
-    color: Colors.surface,
+  todayLabel: {
     fontWeight: 'bold',
-  },
-  historyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  historyDate: {
-    width: 80,
-  },
-  historyDateText: {
-    fontSize: 14,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  historyData: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  historySteps: {
-    fontSize: 16,
-    color: Colors.text,
-    fontWeight: 'bold',
-  },
-  historyDetails: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  historyStatus: {
-    alignItems: 'center',
-  },
-  achievedBadge: {
-    fontSize: 12,
-    color: Colors.success,
-    backgroundColor: '#E8F5E8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    fontWeight: 'bold',
-  },
-  pendingBadge: {
-    fontSize: 12,
-    color: Colors.warning,
-    backgroundColor: '#FFF8E1',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    fontWeight: 'bold',
+    color: Colors.accent,
   },
 });
 
-export default ActivityScreen; 
+export default ActivityScreen;

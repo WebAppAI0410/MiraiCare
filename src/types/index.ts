@@ -23,6 +23,35 @@ export interface VitalData {
   createdAt: string;
 }
 
+// 歩数データの型定義
+export interface StepData {
+  date: string; // YYYY-MM-DD形式
+  steps: number;
+  distance?: number; // km
+  calories?: number; // kcal
+  activeTime?: number; // 分
+}
+
+// 歩数統計の型定義
+export interface StepStatistics {
+  daily: number;
+  weekly: number;
+  monthly: number;
+  weeklyAverage: number;
+  monthlyAverage: number;
+  bestDay: StepData;
+  currentStreak: number; // 連続達成日数
+}
+
+// ユーザー設定の型定義を拡張
+export interface UserSettings {
+  stepTarget?: number; // 歩数目標
+  strideLength?: number; // 歩幅（メートル）
+  weight?: number; // 体重（kg）
+  height?: number; // 身長（cm）
+  activityLevel?: 'low' | 'moderate' | 'high'; // 活動レベル
+}
+
 // 気分データの型定義
 export interface MoodData {
   id: string;

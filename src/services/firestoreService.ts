@@ -23,7 +23,8 @@ import {
 import { 
   Reminder,
   Badge,
-  MoodData 
+  MoodData,
+  UserSettings
 } from '../types';
 
 /**
@@ -123,19 +124,27 @@ export const deleteUserProfile = async (userId: string): Promise<void> => {
 
 /**
  * バイタルデータを保存
- * @param vitalData バイタルデータ
+ * @param userId ユーザーID
+ * @param vitalData バイタルデータ（部分的）
  * @returns 保存されたドキュメントのID
  */
-export const saveVitalData = async (vitalData: VitalData): Promise<string> => {
+export const saveVitalData = async (
+  userId: string,
+  vitalData: Partial<VitalData>
+): Promise<{ id: string; success: boolean }> => {
   try {
     const vitalCollection = collection(db, COLLECTIONS.VITAL_DATA);
     
     const docRef = await addDoc(vitalCollection, {
+      userId,
       ...vitalData,
       createdAt: serverTimestamp(),
     });
     
-    return docRef.id;
+    return {
+      id: docRef.id,
+      success: true,
+    };
   } catch (error) {
     console.error('バイタルデータ保存エラー:', error);
     throw new Error('バイタルデータの保存に失敗しました');
@@ -497,5 +506,27 @@ export const getTodayMoodData = async (userId: string): Promise<MoodData[]> => {
   } catch (error) {
     console.error('今日のムードデータ取得エラー:', error);
     throw new Error('今日のムードデータの取得に失敗しました');
+  }
+};
+
+/**
+ * ユーザー設定を更新
+ * @param userId ユーザーID
+ * @param settings 更新する設定
+ */
+export const updateUserSettings = async (
+  userId: string,
+  settings: Partial<UserSettings>
+): Promise<void> => {
+  try {
+    const userRef = doc(db, COLLECTIONS.USERS, userId);
+    
+    await updateDoc(userRef, {
+      ...settings,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('ユーザー設定更新エラー:', error);
+    throw new Error('ユーザー設定の更新に失敗しました');
   }
 };
