@@ -16,7 +16,11 @@ class PedometerService {
    */
   async isAvailable(): Promise<boolean> {
     try {
-      return await Pedometer.isAvailableAsync();
+      const isAvailable = await Pedometer.isAvailableAsync();
+      if (!isAvailable) {
+        console.log('歩数計はこのデバイスで利用できません');
+      }
+      return isAvailable;
     } catch (error) {
       console.error('歩数計の利用可能チェックエラー:', error);
       return false;
@@ -26,18 +30,23 @@ class PedometerService {
   /**
    * パーミッションをリクエスト
    */
-  async requestPermissions(): Promise<{ granted: boolean; status: string }> {
+  async requestPermissions(): Promise<{ granted: boolean; status: string; message?: string }> {
     try {
       const result = await Pedometer.requestPermissionsAsync();
+      if (!result.granted) {
+        console.log('歩数計のアクセスが拒否されました');
+      }
       return {
         granted: result.granted,
         status: result.status,
+        message: result.granted ? undefined : '設定から歩数計のアクセスを許可してください',
       };
     } catch (error) {
       console.error('パーミッションリクエストエラー:', error);
       return {
         granted: false,
-        status: 'denied',
+        status: 'error',
+        message: 'パーミッションの取得に失敗しました',
       };
     }
   }
@@ -55,6 +64,10 @@ class PedometerService {
       return result.steps;
     } catch (error) {
       console.error('歩数取得エラー:', error);
+      // エラーの種類によって適切なメッセージを記録
+      if (error instanceof Error && error.message.includes('permission')) {
+        console.log('歩数計のアクセス権限がありません');
+      }
       return 0;
     }
   }

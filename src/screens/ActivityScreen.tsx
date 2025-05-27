@@ -144,10 +144,13 @@ const ActivityScreen: React.FC = () => {
       if (!permission.granted) {
         Alert.alert(
           'パーミッションが必要です',
-          '歩数を計測するには、モーションセンサーへのアクセス許可が必要です。',
+          permission.message || '歩数を計測するには、モーションセンサーへのアクセス許可が必要です。',
           [
             { text: 'キャンセル', style: 'cancel' },
-            { text: '設定を開く', onPress: () => console.log('設定を開く') }
+            { text: '設定を開く', onPress: () => {
+              // React NativeのLinkingをインポートする必要があります
+              console.log('設定を開く機能は実装予定');
+            }}
           ]
         );
         setIsLoading(false);
