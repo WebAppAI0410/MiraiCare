@@ -4,6 +4,7 @@
 React Native + TypeScript + Supabaseを使用した高齢者向けヘルスケアアプリケーション
 
 ## 重要な指針
+- **テスト駆動開発（TDD）を必須としてください**
 - TypeScriptエラーの修正を最優先してください
 - 依存関係の問題を特定し、package.jsonに必要なパッケージを追加してください
 - コードは簡潔で明快に書いてください
@@ -13,7 +14,8 @@ React Native + TypeScript + Supabaseを使用した高齢者向けヘルスケ�
 
 ## 技術スタック
 - **フロントエンド**: React Native + TypeScript + Expo
-- **バックエンド**: Supabase (PostgreSQL + Auth + Storage)
+- **バックエンド**: Firebase (Firestore + Auth + Cloud Functions + Storage)
+- **認証方式**: 6桁認証コード（メール送信）
 - **状態管理**: Zustand
 - **ナビゲーション**: React Navigation
 - **テスト**: Jest + React Native Testing Library
@@ -47,12 +49,13 @@ React Native + TypeScript + Supabaseを使用した高齢者向けヘルスケ�
 - 各修正後にテストを実行して確認してください
 - TypeScriptエラーがないことを確認してください
 
-## 作業手順
-1. まず問題を分析し、具体的な修正計画を立ててください
-2. 段階的に修正を実行してください
-3. 各修正後にテストを実行して確認してください
-4. 完了時にコミットメッセージを作成してください
-5. PRを作成してください
+## 作業手順（TDDベース）
+1. **テスト作成**: 実装前に失敗するテストを書く
+2. **最小実装**: テストが通る最小限のコードを書く
+3. **リファクタリング**: テストが通る状態を保ちながらコードを整理
+4. **テスト実行**: すべてのテストが通ることを確認
+5. **コミット**: テストと実装を一緒にコミット
+6. **PR作成**: テスト結果を含めてPRを作成
 
 ## 重要：PR作成について
 - 必ずコミットを作成してからPRを作成してください
@@ -79,11 +82,103 @@ src/
 └── config/         # 設定ファイル
 ```
 
+## テスト駆動開発（TDD）ガイドライン
+
+### 基本原則
+1. **レッド・グリーン・リファクタリングサイクル**
+   - レッド：失敗するテストを最初に書く
+   - グリーン：テストが通る最小限の実装をする
+   - リファクタリング：コードを整理する
+
+2. **テストカバレッジ目標**
+   - 単体テスト：80%以上
+   - 統合テスト：主要フローを網羅
+   - E2Eテスト：クリティカルパスをカバー
+
+3. **テスト作成タイミング**
+   - 新機能実装前にテストを書く
+   - バグ修正時は再現テストを先に書く
+   - リファクタリング前にテストを整備
+
+### テスト種別と責任範囲
+
+#### 1. 単体テスト（Unit Tests）
+```typescript
+// __tests__/components/Button.test.tsx
+// - コンポーネントの表示
+// - プロップスの動作
+// - イベントハンドリング
+```
+
+#### 2. 統合テスト（Integration Tests）
+```typescript
+// __tests__/integration/authFlow.test.ts
+// - 複数コンポーネントの連携
+// - API通信
+// - 状態管理
+```
+
+#### 3. E2Eテスト（End-to-End Tests）
+```typescript
+// e2e/userJourney.test.ts
+// - ユーザージャーニー全体
+// - 実際の環境での動作
+```
+
+### テスト書き方の指針
+
+1. **AAAパターンを使用**
+   ```typescript
+   it('認証コードを正しく検証する', async () => {
+     // Arrange（準備）
+     const code = '123456';
+     
+     // Act（実行）
+     const result = await verifyCode(code);
+     
+     // Assert（検証）
+     expect(result).toBe(true);
+   });
+   ```
+
+2. **テスト名は日本語で分かりやすく**
+   - ✅ `'メールアドレスが無効な場合エラーを表示'`
+   - ❌ `'test email validation'`
+
+3. **モックは最小限に**
+   - 必要な部分のみモック化
+   - 可能な限り実際の実装を使用
+
+### テストコマンド
+```bash
+# 全テスト実行
+npm test
+
+# 特定ファイルのテスト
+npm test SignupScreen.test.tsx
+
+# カバレッジレポート
+npm test -- --coverage
+
+# ウォッチモード
+npm test -- --watch
+
+# Cloud Functionsのテスト
+cd functions && npm test
+```
+
+### テストチェックリスト
+- [ ] 正常系テストがある
+- [ ] エラー系テストがある
+- [ ] エッジケースがカバーされている
+- [ ] モックが適切に設定されている
+- [ ] テストが独立している（他のテストに依存しない）
+- [ ] テストが高速に実行される
+
 ## 現在の課題
-1. **依存関係不足**: @supabase/supabase-js、@testing-library/react-native、@types/jest、eslint、jest
-2. **TypeScript型定義**: jest、describe、it、expectの型定義が不足
-3. **不足ファイル**: src/navigation/AppNavigator.tsx等
-4. **設定ファイル**: ESLintとJestの設定が不完全
+1. **テストカバレッジの向上**: 新機能すべてにテストを追加
+2. **E2Eテストの導入**: DetoxまたはMaestroを検討
+3. **CI/CDでのテスト自動化**: GitHub Actionsでのテスト実行
 
 ## 作業指針
 - TypeScriptエラーを最優先で修正
