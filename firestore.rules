@@ -1,21 +1,159 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ===============================
+    // 共通ヘルパー関数
+    // ===============================
+    
+    // ユーザー認証の確認
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // ユーザー自身のデータかどうか確認
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // リソースの所有者確認
+    function isResourceOwner() {
+      return isAuthenticated() && 
+             resource != null && 
+             resource.data.userId == request.auth.uid;
+    }
+    
+    // 新規リソースの所有者確認
+    function isNewResourceOwner() {
+      return isAuthenticated() && 
+             request.resource.data.userId == request.auth.uid;
+    }
+    
+    // 有効なタイムスタンプかどうか確認
+    function hasValidTimestamp() {
+      return request.resource.data.timestamp is string ||
+             request.resource.data.timestamp is timestamp;
+    }
+    
+    // ===============================
+    // コレクション別ルール
+    // ===============================
+    
+    // ユーザーコレクション
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
+      
+      allow create: if isOwner(userId) && 
+                      request.resource.data.keys().hasAll(['email', 'fullName']) &&
+                      request.resource.data.email is string &&
+                      request.resource.data.fullName is string;
+      
+      allow update: if isOwner(userId) &&
+                      // ユーザーIDは変更不可
+                      (!request.resource.data.keys().hasAny(['id']) || 
+                       request.resource.data.id == userId);
+      
+      allow delete: if false; // ユーザー削除はCloud Functionsでのみ許可
     }
-    match /vitals/{vitalId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+    
+    // バイタルデータコレクション
+    match /vitalData/{docId} {
+      allow read: if isResourceOwner() || 
+                     (isAuthenticated() && !exists(/databases/$(database)/documents/vitalData/$(docId)));
+      
+      allow create: if isNewResourceOwner() &&
+                      request.resource.data.keys().hasAll(['userId', 'timestamp']) &&
+                      hasValidTimestamp() &&
+                      // 歩数と心拍数は0以上の数値
+                      (!('steps' in request.resource.data) || 
+                       (request.resource.data.steps is int && request.resource.data.steps >= 0)) &&
+                      (!('heartRate' in request.resource.data) || 
+                       (request.resource.data.heartRate is int && 
+                        request.resource.data.heartRate >= 40 && 
+                        request.resource.data.heartRate <= 200));
+      
+      allow update: if isResourceOwner() &&
+                      // ユーザーIDは変更不可
+                      request.resource.data.userId == resource.data.userId &&
+                      hasValidTimestamp();
+      
+      allow delete: if false; // データの完全性のため削除不可
     }
-    match /moods/{moodId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+    
+    // ムードデータコレクション
+    match /moodData/{docId} {
+      allow read: if isResourceOwner() || 
+                     (isAuthenticated() && !exists(/databases/$(database)/documents/moodData/$(docId)));
+      
+      allow create: if isNewResourceOwner() &&
+                      request.resource.data.keys().hasAll(['userId', 'mood', 'timestamp']) &&
+                      request.resource.data.mood in ['very_happy', 'happy', 'neutral', 'sad', 'very_sad'] &&
+                      hasValidTimestamp();
+      
+      allow update: if false; // ムードデータは不変
+      allow delete: if false; // データの完全性のため削除不可
     }
+    
+    // リマインダーコレクション
     match /reminders/{reminderId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      // 読み取り: 自分のリマインダーまたは古いデータ（userIdなし）
+      allow read: if isAuthenticated() && 
+                     (resource == null ||
+                      !('userId' in resource.data) || 
+                      resource.data.userId == request.auth.uid);
+      
+      allow create: if isNewResourceOwner() &&
+                      request.resource.data.type in ['water', 'medication'] &&
+                      request.resource.data.keys().hasAll(['userId', 'type', 'scheduledTime', 'completed']) &&
+                      request.resource.data.scheduledTime is string &&
+                      request.resource.data.completed is bool;
+      
+      // 更新: completedとcompletedAtフィールドのみ変更可能
+      allow update: if isResourceOwner() &&
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.type == resource.data.type &&
+                      request.resource.data.scheduledTime == resource.data.scheduledTime &&
+                      // 完了状態の更新のみ許可
+                      (request.resource.data.completed is bool);
+      
+      allow delete: if isResourceOwner();
     }
+    
+    // バッジコレクション
     match /badges/{badgeId} {
-      allow read: if request.auth != null;
-      allow write: if false;
+      allow read: if isAuthenticated() && 
+                     (resource == null || resource.data.userId == request.auth.uid);
+      
+      // バッジの作成・更新・削除はCloud Functionsでのみ許可
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    // 通知コレクション
+    match /notifications/{notificationId} {
+      allow read: if isResourceOwner();
+      
+      // 通知の作成はCloud Functionsでのみ許可
+      allow create: if false;
+      
+      // 既読フラグのみ更新可能
+      allow update: if isResourceOwner() &&
+                      request.resource.data.keys().hasAll(resource.data.keys()) &&
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.type == resource.data.type &&
+                      request.resource.data.title == resource.data.title &&
+                      request.resource.data.body == resource.data.body &&
+                      request.resource.data.read is bool;
+      
+      allow delete: if isResourceOwner();
+    }
+    
+    // ===============================
+    // 管理者専用コレクション（将来の拡張用）
+    // ===============================
+    match /admin/{document=**} {
+      allow read, write: if false; // 管理者機能は現在無効
     }
   }
 }

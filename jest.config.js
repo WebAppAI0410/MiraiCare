@@ -10,6 +10,10 @@ module.exports = {
     '**/__tests__/**/*.test.(ts|tsx|js|jsx)',
     '**/?(*.)(test|spec).(ts|tsx|js|jsx)',
   ],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/functions/',
+  ],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
