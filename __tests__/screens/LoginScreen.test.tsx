@@ -132,8 +132,19 @@ describe('LoginScreen', () => {
     });
 
     await waitFor(() => {
-      expect(mockOnLoginSuccess).toHaveBeenCalled();
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'ログイン成功',
+        'MiraiCareへようこそ！',
+        expect.any(Array)
+      );
     });
+
+    // Alert.alertのOKボタンを押す
+    const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
+    const buttons = alertCall[2];
+    buttons[0].onPress();
+
+    expect(mockOnLoginSuccess).toHaveBeenCalled();
   });
 
   it('ログインエラー時に適切なエラーメッセージが表示される', async () => {
@@ -191,8 +202,8 @@ describe('LoginScreen', () => {
       <LoginScreen {...defaultProps} />
     );
 
-    // authServiceのモックを設定（遅延）
-    (authService.signInWithEmail as jest.Mock).mockImplementation(
+    // authServiceFreeのモックを設定（遅延）
+    (authServiceFree.signInWithEmailFree as jest.Mock).mockImplementation(
       () => new Promise(resolve => setTimeout(resolve, 1000))
     );
 
