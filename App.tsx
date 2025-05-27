@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoginScreen from './src/screens/LoginScreen';
+import SignupScreen from './src/screens/SignupScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import GuestHomeScreen from './src/screens/GuestHomeScreen';
 import PromptLoginScreen from './src/screens/PromptLoginScreen';
@@ -20,6 +21,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [appState, setAppState] = useState<AppState>('onboarding');
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
 
   useEffect(() => {
     // 認証状態の監視
@@ -53,10 +56,17 @@ export default function App() {
 
   const handleLoginSuccess = () => {
     setAppState('authenticated');
+    setShowLogin(false);
+  };
+  
+  const handleSignupSuccess = () => {
+    // サインアップ成功後はログイン画面へ
+    setShowSignup(false);
+    setShowLogin(true);
   };
 
   const handleLoginNavigate = () => {
-    setAppState('onboarding'); // LoginScreenに移動
+    setShowSignup(true);
   };
 
   const handleContinueGuest = () => {
@@ -64,8 +74,13 @@ export default function App() {
   };
 
   const handleSwitchToSignup = () => {
-    // TODO: SignupScreen実装時に追加
-    console.log('Switch to signup');
+    setShowLogin(false);
+    setShowSignup(true);
+  };
+  
+  const handleSwitchToLogin = () => {
+    setShowSignup(false);
+    setShowLogin(true);
   };
 
   // 初期化中のローディング画面
@@ -86,30 +101,37 @@ export default function App() {
   return (
     <>
       <StatusBar style="auto" />
-      {appState === 'onboarding' && (
-        <OnboardingScreen onComplete={handleOnboardingComplete} />
-      )}
-      {appState === 'guest_experience' && (
-        <GuestHomeScreen onPromptLogin={handlePromptLogin} />
-      )}
-      {appState === 'prompt_login' && (
-        <PromptLoginScreen 
-          onLogin={handleLoginNavigate}
-          onContinueGuest={handleContinueGuest}
-        />
-      )}
-      {appState === 'authenticated' && user && (
-        <AppNavigator 
-          showOnboarding={false} 
-          onOnboardingComplete={() => {}} 
-        />
-      )}
-      {/* 認証が必要な場合のログイン画面 */}
-      {!user && (appState === 'onboarding' && hasSeenOnboarding) && (
+      {showLogin ? (
         <LoginScreen 
           onLoginSuccess={handleLoginSuccess}
           onSwitchToSignup={handleSwitchToSignup}
         />
+      ) : showSignup ? (
+        <SignupScreen
+          onSignupSuccess={handleSignupSuccess}
+          onSwitchToLogin={handleSwitchToLogin}
+        />
+      ) : (
+        <>
+          {appState === 'onboarding' && !hasSeenOnboarding && (
+            <OnboardingScreen onComplete={handleOnboardingComplete} />
+          )}
+          {appState === 'guest_experience' && (
+            <GuestHomeScreen onPromptLogin={handlePromptLogin} />
+          )}
+          {appState === 'prompt_login' && (
+            <PromptLoginScreen 
+              onLogin={handleLoginNavigate}
+              onContinueGuest={handleContinueGuest}
+            />
+          )}
+          {appState === 'authenticated' && user && (
+            <AppNavigator 
+              showOnboarding={false} 
+              onOnboardingComplete={() => {}} 
+            />
+          )}
+        </>
       )}
     </>
   );

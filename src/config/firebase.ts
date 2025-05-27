@@ -24,21 +24,35 @@ import {
 
 // Firebase設定（環境変数から取得）
 const firebaseConfig = {
-  apiKey: Constants.expoConfig?.extra?.firebaseApiKey,
-  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain,
-  projectId: Constants.expoConfig?.extra?.firebaseProjectId,
-  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket,
-  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId,
-  appId: Constants.expoConfig?.extra?.firebaseAppId
+  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || "AIzaSyDxxs-Oxtw_SSV_nIe1knYpEJIOpQ9QoJM",
+  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || "miraicare-360-mvp.firebaseapp.com",
+  projectId: Constants.expoConfig?.extra?.firebaseProjectId || "miraicare-360-mvp",
+  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || "miraicare-360-mvp.firebasestorage.app",
+  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || "89007426308",
+  appId: Constants.expoConfig?.extra?.firebaseAppId || "1:89007426308:web:acf9ff1c45a1aad4ac9e51"
 };
 
+console.log('Firebase config:', firebaseConfig);
+
 // Firebase初期化
-const app = initializeApp(firebaseConfig);
+let app;
+try {
+  app = initializeApp(firebaseConfig);
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+  throw error;
+}
 
 // Firebase サービス（標準の初期化方法）
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const functions = getFunctions(app);
+
+// Authの状態を確認
+auth.onAuthStateChanged((user) => {
+  console.log('Auth state changed:', user ? 'User logged in' : 'User logged out');
+});
 
 // 開発環境でエミュレーターに接続（オプション）
 if (__DEV__ && Constants.appOwnership === 'expo') {

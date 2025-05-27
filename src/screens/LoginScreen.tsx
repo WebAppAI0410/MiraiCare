@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Colors, FontSizes, TouchTargets, Spacing } from '../types';
@@ -50,7 +51,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onSwitchToSig
         { text: 'OK', onPress: onLoginSuccess }
       ]);
     } catch (error) {
-      Alert.alert('ログインエラー', (error as Error).message);
+      console.error('Login error:', error);
+      const firebaseError = error as any;
+      let errorMessage = 'ログインに失敗しました。';
+      
+      if (firebaseError.code === 'auth/user-not-found') {
+        errorMessage = 'このメールアドレスは登録されていません。';
+      } else if (firebaseError.code === 'auth/wrong-password' || firebaseError.code === 'auth/invalid-credential') {
+        errorMessage = 'パスワードが正しくありません。';
+      } else if (firebaseError.code === 'auth/invalid-email') {
+        errorMessage = 'メールアドレスの形式が正しくありません。';
+      } else if (firebaseError.message) {
+        errorMessage = firebaseError.message;
+      }
+      
+      Alert.alert('ログインエラー', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +97,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onSwitchToSig
       <KeyboardAvoidingView 
         style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* ヘッダー */}
         <View style={styles.header}>
           <Text style={styles.title}>MiraiCare</Text>
@@ -172,6 +193,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onSwitchToSig
             <Text style={styles.signupButtonText}>新規アカウント作成</Text>
           </TouchableOpacity>
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -184,8 +206,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: Spacing.screenPadding,
     paddingVertical: Spacing.lg,
+    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
@@ -254,8 +280,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   buttonContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
+    marginTop: Spacing.xl,
   },
   loginButton: {
     backgroundColor: Colors.primary,

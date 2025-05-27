@@ -83,9 +83,11 @@ export const signUpWithEmail = async (
   password: string, 
   fullName: string
 ): Promise<User> => {
+  console.log('[authService] Starting signup with email:', email);
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const firebaseUser = userCredential.user;
+    console.log('[authService] User created successfully:', firebaseUser.uid);
     
     // プロフィール更新
     await updateProfile(firebaseUser, {
@@ -93,7 +95,13 @@ export const signUpWithEmail = async (
     });
     
     // メール確認を送信
-    await sendEmailVerification(firebaseUser);
+    try {
+      await sendEmailVerification(firebaseUser);
+      console.log('[authService] Verification email sent successfully');
+    } catch (emailError) {
+      console.error('[authService] Failed to send verification email:', emailError);
+      // メール送信に失敗してもユーザー作成は成功とする
+    }
     
     // Firestoreにユーザー情報を保存
     const newUser: User = {
@@ -119,8 +127,10 @@ export const signUpWithEmail = async (
     // プッシュ通知トークンを登録
     registerForPushNotifications().catch(console.error);
     
+    console.log('[authService] Signup completed successfully');
     return newUser;
   } catch (error) {
+    console.error('[authService] Signup error:', error);
     throw handleAuthError(error as AuthError);
   }
 };
