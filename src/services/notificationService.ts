@@ -53,7 +53,7 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
     if (!hasPermission) return null;
 
     const token = await Notifications.getExpoPushTokenAsync({
-      projectId: 'your-project-id', // Expo設定から取得
+      projectId: 'miraicare-360-mvp', // Firebase/Expoプロジェクト ID
     });
 
     // トークンをFirestoreに保存

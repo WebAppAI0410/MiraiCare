@@ -13,7 +13,7 @@
     "test:watch": "jest --watch --env=node"
   },
   "engines": {
-    "node": "18"
+    "node": ">=18"
   },
   "main": "lib/index.js",
   "dependencies": {

@@ -22,3 +22,6 @@ coverage/
 
 # Misc
 .DS_Store
+
+# Package lock file (large file)
+package-lock.json
