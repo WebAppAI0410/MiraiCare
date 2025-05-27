@@ -1,7 +1,6 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { EventContext } from "firebase-functions";
-import { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
+import type { EventContext } from "firebase-functions";
 
 // Firebase Admin初期化
 admin.initializeApp();
@@ -66,7 +65,7 @@ export const generateDailyReport = functions.pubsub
         let avgHeartRate = 0;
         let heartRateCount = 0;
         
-        vitalDataSnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
+        vitalDataSnapshot.forEach((doc: any) => {
           const data = doc.data();
           totalSteps += data.steps || 0;
           if (data.heartRate) {
@@ -140,7 +139,7 @@ export const generateDailyReport = functions.pubsub
 // バッジ獲得チェック関数（バイタルデータ作成時にトリガー）
 export const checkBadgeAchievements = functions.firestore
   .document(`${COLLECTIONS.VITAL_DATA}/{docId}`)
-  .onCreate(async (snap: QueryDocumentSnapshot<DocumentData>, context: EventContext) => {
+  .onCreate(async (snap: any, context: EventContext) => {
     const vitalData = snap.data();
     const userId = vitalData.userId;
     
@@ -151,7 +150,7 @@ export const checkBadgeAchievements = functions.firestore
         .where("userId", "==", userId)
         .get();
       
-      const existingBadgeIds = new Set(badgesSnapshot.docs.map(doc => doc.data().id));
+      const existingBadgeIds = new Set(badgesSnapshot.docs.map((doc: any) => doc.data().id));
       
       // 7日連続記録チェック（badge-2）
       if (!existingBadgeIds.has("badge-2")) {
@@ -167,7 +166,7 @@ export const checkBadgeAchievements = functions.firestore
         
         // 日付ごとにデータをグループ化
         const dailyData = new Map<string, boolean>();
-        recentDataSnapshot.forEach((doc) => {
+        recentDataSnapshot.forEach((doc: any) => {
           const date = new Date(doc.data().timestamp).toDateString();
           dailyData.set(date, true);
         });
@@ -200,7 +199,7 @@ export const checkBadgeAchievements = functions.firestore
 // ムードミラー使用回数チェック（ムードデータ作成時にトリガー）
 export const checkMoodMirrorBadge = functions.firestore
   .document(`${COLLECTIONS.MOOD_DATA}/{docId}`)
-  .onCreate(async (snap: QueryDocumentSnapshot<DocumentData>, context: EventContext) => {
+  .onCreate(async (snap: any, context: EventContext) => {
     const moodData = snap.data();
     const userId = moodData.userId;
     
@@ -351,7 +350,7 @@ export const cleanupUserData = functions.auth.user().onDelete(async (user: admin
         .where("userId", "==", userId)
         .get();
       
-      snapshot.forEach((doc) => {
+      snapshot.forEach((doc: any) => {
         batch.delete(doc.ref);
       });
     }
