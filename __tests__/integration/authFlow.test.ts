@@ -1,0 +1,289 @@
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import App from '../../App';
+
+// Firebaseのモック
+jest.mock('../../src/config/firebase', () => ({
+  auth: {},
+  db: {},
+}));
+
+jest.mock('firebase/auth', () => ({
+  signInWithCustomToken: jest.fn(),
+  onAuthStateChanged: jest.fn((auth, callback) => {
+    // 初期状態は未認証
+    callback(null);
+    return jest.fn(); // unsubscribe function
+  }),
+}));
+
+jest.mock('firebase/functions', () => ({
+  getFunctions: jest.fn(),
+  httpsCallable: jest.fn(() => jest.fn()),
+}));
+
+jest.mock('../../src/services/authService', () => ({
+  subscribeToAuthState: jest.fn((callback) => {
+    callback(null);
+    return jest.fn();
+  }),
+  signUpWithEmail: jest.fn(),
+}));
+
+// Alertのモック
+jest.spyOn(Alert, 'alert');
+
+describe('認証フロー統合テスト', () => {
+  const mockSendVerificationCode = jest.fn();
+  const mockVerifyCode = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // httpsCallableのモックを設定
+    const { httpsCallable } = require('firebase/functions');
+    httpsCallable.mockImplementation((_, functionName) => {
+      if (functionName === 'sendVerificationCode') return mockSendVerificationCode;
+      if (functionName === 'verifyCode') return mockVerifyCode;
+      return jest.fn();
+    });
+
+    // グローバル変数をリセット
+    global.tempUserData = undefined;
+  });
+
+  describe('サインアップフロー', () => {
+    it('オンボーディング → ゲスト体験 → 登録画面 → 認証コード入力 → 完了', async () => {
+      const { getByText, getAllByText, getByPlaceholderText, getAllByAccessibilityLabel } = render(<App />);
+
+      // 1. オンボーディング画面
+      await waitFor(() => {
+        expect(getByText('MiraiCare 360へようこそ')).toBeTruthy();
+      });
+
+      // スキップボタンをタップ
+      const skipButton = getByText('スキップ');
+      fireEvent.press(skipButton);
+
+      // 2. ゲストホーム画面
+      await waitFor(() => {
+        expect(getByText('MiraiCare')).toBeTruthy();
+      });
+
+      // 完全版を利用するボタンをタップ
+      const fullVersionButton = getByText('完全版を利用する（無料会員登録）');
+      fireEvent.press(fullVersionButton);
+
+      // 3. PromptLogin画面
+      await waitFor(() => {
+        expect(getByText(/もっと活用しませんか/)).toBeTruthy();
+      });
+
+      // 無料会員登録ボタンをタップ
+      const signupButton = getAllByText(/無料会員登録/)[0];
+      fireEvent.press(signupButton);
+
+      // 4. SignupScreen
+      await waitFor(() => {
+        expect(getByText('新規アカウント作成')).toBeTruthy();
+      });
+
+      // フォームに入力
+      const nameInput = getByPlaceholderText('山田 太郎');
+      const emailInput = getByPlaceholderText('example@example.com');
+      const passwordInput = getByPlaceholderText('6文字以上で入力');
+      const confirmPasswordInput = getByPlaceholderText('パスワードを再入力');
+
+      fireEvent.changeText(nameInput, 'テストユーザー');
+      fireEvent.changeText(emailInput, 'test@example.com');
+      fireEvent.changeText(passwordInput, 'password123');
+      fireEvent.changeText(confirmPasswordInput, 'password123');
+
+      // 認証コード送信のモック設定
+      mockSendVerificationCode.mockResolvedValue({ data: { success: true } });
+
+      // アカウント作成ボタンをタップ
+      const createAccountButton = getByText('アカウント作成');
+      fireEvent.press(createAccountButton);
+
+      // 認証コード送信確認
+      await waitFor(() => {
+        expect(mockSendVerificationCode).toHaveBeenCalledWith({
+          email: 'test@example.com',
+          action: 'signup',
+        });
+      });
+
+      // Alert確認
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          '認証コードを送信しました',
+          expect.any(String),
+          expect.any(Array),
+          { cancelable: false }
+        );
+      });
+
+      // Alertの「次へ」ボタンを押す
+      const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
+      alertCall[2][0].onPress();
+
+      // 5. VerificationCodeScreen
+      await waitFor(() => {
+        expect(getByText('認証コード入力')).toBeTruthy();
+      });
+
+      // 6桁のコードを入力
+      const codeInputs = getAllByAccessibilityLabel(/認証コード\d桁目/);
+      '123456'.split('').forEach((digit, index) => {
+        fireEvent.changeText(codeInputs[index], digit);
+      });
+
+      // 検証成功のモック設定
+      mockVerifyCode.mockResolvedValue({ 
+        data: { success: true, customToken: 'test-token' } 
+      });
+
+      // signUpWithEmailのモック設定
+      const { signUpWithEmail } = require('../../src/services/authService');
+      signUpWithEmail.mockResolvedValue({
+        id: 'test-user-id',
+        email: 'test@example.com',
+        fullName: 'テストユーザー',
+      });
+
+      // 確認ボタンをタップ
+      const confirmButton = getByText('確認');
+      fireEvent.press(confirmButton);
+
+      // 検証確認
+      await waitFor(() => {
+        expect(mockVerifyCode).toHaveBeenCalledWith({
+          email: 'test@example.com',
+          code: '123456',
+        });
+      });
+
+      // アカウント作成確認
+      await waitFor(() => {
+        expect(signUpWithEmail).toHaveBeenCalledWith(
+          'test@example.com',
+          'password123',
+          'テストユーザー'
+        );
+      });
+
+      // 成功メッセージ確認
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          '登録完了',
+          'アカウントが作成されました！',
+          expect.any(Array)
+        );
+      });
+    });
+
+    it('認証コードエラー時の再送信フロー', async () => {
+      // SignupScreenまで進む（上記テストの短縮版）
+      const { getByText, getByPlaceholderText, getAllByAccessibilityLabel } = render(<App />);
+      
+      // オンボーディングをスキップ
+      fireEvent.press(getByText('スキップ'));
+      
+      // ゲスト画面から登録へ
+      await waitFor(() => getByText('完全版を利用する（無料会員登録）'));
+      fireEvent.press(getByText('完全版を利用する（無料会員登録）'));
+      
+      // PromptLogin画面から登録へ
+      await waitFor(() => getAllByText(/無料会員登録/)[0]);
+      fireEvent.press(getAllByText(/無料会員登録/)[0]);
+      
+      // SignupScreenでフォーム入力
+      await waitFor(() => getByText('新規アカウント作成'));
+      fireEvent.changeText(getByPlaceholderText('山田 太郎'), 'テストユーザー');
+      fireEvent.changeText(getByPlaceholderText('example@example.com'), 'test@example.com');
+      fireEvent.changeText(getByPlaceholderText('6文字以上で入力'), 'password123');
+      fireEvent.changeText(getByPlaceholderText('パスワードを再入力'), 'password123');
+      
+      mockSendVerificationCode.mockResolvedValue({ data: { success: true } });
+      fireEvent.press(getByText('アカウント作成'));
+      
+      // Alertの処理
+      await waitFor(() => Alert.alert);
+      const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
+      alertCall[2][0].onPress();
+      
+      // VerificationCodeScreenで間違ったコードを入力
+      await waitFor(() => getByText('認証コード入力'));
+      const codeInputs = getAllByAccessibilityLabel(/認証コード\d桁目/);
+      '999999'.split('').forEach((digit, index) => {
+        fireEvent.changeText(codeInputs[index], digit);
+      });
+      
+      // エラーのモック設定
+      mockVerifyCode.mockRejectedValue({ 
+        code: 'invalid-argument',
+        message: '認証コードが正しくありません' 
+      });
+      
+      fireEvent.press(getByText('確認'));
+      
+      // エラーメッセージ確認
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'エラー',
+          '認証コードが正しくありません。'
+        );
+      });
+      
+      // タイマーを進める（再送信ボタンを有効化）
+      jest.useFakeTimers();
+      jest.advanceTimersByTime(60000);
+      jest.useRealTimers();
+      
+      // 再送信
+      await waitFor(() => {
+        const resendButton = getByText('認証コードを再送信');
+        fireEvent.press(resendButton);
+      });
+      
+      await waitFor(() => {
+        expect(mockSendVerificationCode).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+
+  describe('エラーハンドリング', () => {
+    it('ネットワークエラー時の処理', async () => {
+      const { getByText, getByPlaceholderText } = render(<App />);
+      
+      // SignupScreenまで進む
+      fireEvent.press(getByText('スキップ'));
+      await waitFor(() => getByText('完全版を利用する（無料会員登録）'));
+      fireEvent.press(getByText('完全版を利用する（無料会員登録）'));
+      await waitFor(() => getAllByText(/無料会員登録/)[0]);
+      fireEvent.press(getAllByText(/無料会員登録/)[0]);
+      
+      // フォーム入力
+      await waitFor(() => getByText('新規アカウント作成'));
+      fireEvent.changeText(getByPlaceholderText('山田 太郎'), 'テストユーザー');
+      fireEvent.changeText(getByPlaceholderText('example@example.com'), 'test@example.com');
+      fireEvent.changeText(getByPlaceholderText('6文字以上で入力'), 'password123');
+      fireEvent.changeText(getByPlaceholderText('パスワードを再入力'), 'password123');
+      
+      // ネットワークエラーのモック
+      mockSendVerificationCode.mockRejectedValue(new Error('Network Error'));
+      
+      fireEvent.press(getByText('アカウント作成'));
+      
+      // エラーメッセージ確認
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          '登録エラー',
+          expect.stringContaining('エラー')
+        );
+      });
+    });
+  });
+});
