@@ -1,3 +1,7 @@
+# Native folders (using Prebuild)
+/android
+/ios
+
 # Dependencies
 node_modules/
 
