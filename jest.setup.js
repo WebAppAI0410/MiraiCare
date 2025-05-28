@@ -1,6 +1,15 @@
 // Mock react-native modules
 global.__DEV__ = true;
 
+// Mock React Native modules before they are imported
+jest.mock('react-native', () => {
+  const RN = jest.requireActual('react-native');
+  RN.Alert = {
+    alert: jest.fn(),
+  };
+  return RN;
+});
+
 // Mock Expo modules
 jest.mock('expo-constants', () => ({
   default: {
@@ -160,7 +169,7 @@ jest.mock('react-native-vector-icons/Ionicons', () => {
   });
 });
 
-// Mock React Native Alert
+// Mock React Native Alert (グローバル変数としても設定)
 global.Alert = {
   alert: jest.fn(),
 };
