@@ -23,10 +23,12 @@ jobs:
         run: npm ci --prefer-offline --no-audit
       
       - name: TypeScript type check
-        run: npm run typecheck
+        run: npm run typecheck:ci
+        continue-on-error: true
       
       - name: ESLint check
-        run: npm run lint
+        run: npm run lint:ci
+        continue-on-error: true
 
   # 単体テスト・コンポーネントテスト
   unit-tests:

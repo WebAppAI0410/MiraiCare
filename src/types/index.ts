@@ -215,6 +215,7 @@ export const Colors = {
   surface: '#FFFFFF',       // 純白
   border: '#E0E0E0',        // ライトグレー
   success: '#4CAF50',
+  successLight: '#E8F5E9',  // 薄い緑（成功背景）
   warning: '#FF9800',
   warningLight: '#FFF3E0',  // 薄いオレンジ（警告背景）
   error: '#F44336',
