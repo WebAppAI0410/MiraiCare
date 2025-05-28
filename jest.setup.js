@@ -160,6 +160,11 @@ jest.mock('react-native-vector-icons/Ionicons', () => {
   });
 });
 
+// Mock React Native Alert
+global.Alert = {
+  alert: jest.fn(),
+};
+
 // Silence console warnings in tests
 global.console = {
   ...console,
