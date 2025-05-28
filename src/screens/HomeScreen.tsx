@@ -12,6 +12,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSizes, TouchTargets, Spacing, RiskLevel, RootStackParamList } from '../types';
 import i18n from '../config/i18n';
 import { auth } from '../config/firebase';
@@ -24,6 +25,7 @@ import {
   getUserVitalHistory
 } from '../services/firestoreService';
 import { riskCalculationService } from '../services/riskCalculationService';
+import { riskAlertService } from '../services/riskAlertService';
 import { pedometerService } from '../services/pedometerService';
 
 const { width } = Dimensions.get('window');
@@ -205,7 +207,7 @@ const HomeScreen: React.FC = () => {
       if (moodHistory.length > 0) {
         // 最新のムードを設定
         const latestMood = moodHistory[0];
-        setCurrentMood(latestMood.moodLabel);
+        setCurrentMood(latestMood.moodLabel || '未設定');
       }
 
       // バッジ数の取得
@@ -268,6 +270,9 @@ const HomeScreen: React.FC = () => {
       
       // UIを更新
       setRiskLevel(assessment.overallLevel);
+      
+      // リスクアラート通知を送信
+      await riskAlertService.checkAndSendRiskAlerts(userId, assessment);
       
       // 高リスクの場合はアラート表示
       if (assessment.overallLevel === 'high') {
@@ -395,6 +400,24 @@ const HomeScreen: React.FC = () => {
             {'★'.repeat(badgeCount)}{'☆'.repeat(Math.max(0, 4 - badgeCount))}
           </Text>
         </TouchableOpacity>
+
+        {/* レポートとグラフへのクイックアクセス */}
+        <View style={styles.quickAccessSection}>
+          <TouchableOpacity
+            style={styles.quickAccessButton}
+            onPress={() => navigation.navigate('Charts')}
+          >
+            <Ionicons name="stats-chart" size={24} color={Colors.primary} />
+            <Text style={styles.quickAccessText}>グラフ</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickAccessButton}
+            onPress={() => navigation.navigate('Report')}
+          >
+            <Ionicons name="document-text" size={24} color={Colors.primary} />
+            <Text style={styles.quickAccessText}>レポート</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -582,6 +605,32 @@ const styles = StyleSheet.create({
   badgeCount: {
     fontSize: FontSizes.h1,
     color: Colors.accent,
+  },
+  quickAccessSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  quickAccessButton: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 80,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  quickAccessText: {
+    fontSize: FontSizes.small,
+    color: Colors.text,
+    marginTop: Spacing.xs,
+    fontWeight: '500',
   },
 });
 

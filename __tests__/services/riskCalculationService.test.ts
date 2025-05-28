@@ -149,9 +149,9 @@ describe('RiskCalculationService', () => {
   describe('メンタルヘルスリスク評価', () => {
     it('ポジティブな気分データの場合、低リスクと評価される', async () => {
       const moodHistory: MoodData[] = [
-        { id: '1', userId: mockUserId, moodLabel: '元気', intensity: 4, createdAt: '2024-01-10' },
-        { id: '2', userId: mockUserId, moodLabel: '穏やか', intensity: 4, createdAt: '2024-01-12' },
-        { id: '3', userId: mockUserId, moodLabel: '楽しい', intensity: 5, createdAt: '2024-01-14' },
+        { id: '1', userId: mockUserId, mood: 80, moodLabel: '元気', intensity: 4, createdAt: '2024-01-10' },
+        { id: '2', userId: mockUserId, mood: 80, moodLabel: '穏やか', intensity: 4, createdAt: '2024-01-12' },
+        { id: '3', userId: mockUserId, mood: 100, moodLabel: '楽しい', intensity: 5, createdAt: '2024-01-14' },
       ];
 
       (firestoreService.getUserMoodHistory as jest.Mock).mockResolvedValue(moodHistory);
@@ -168,9 +168,9 @@ describe('RiskCalculationService', () => {
 
     it('ネガティブな気分が続く場合、高リスクと評価される', async () => {
       const moodHistory: MoodData[] = [
-        { id: '1', userId: mockUserId, moodLabel: '疲れた', intensity: 2, createdAt: '2024-01-10' },
-        { id: '2', userId: mockUserId, moodLabel: '不安', intensity: 2, createdAt: '2024-01-12' },
-        { id: '3', userId: mockUserId, moodLabel: '落ち込み', intensity: 1, createdAt: '2024-01-14' },
+        { id: '1', userId: mockUserId, mood: 40, moodLabel: '疲れた', intensity: 2, createdAt: '2024-01-10' },
+        { id: '2', userId: mockUserId, mood: 40, moodLabel: '不安', intensity: 2, createdAt: '2024-01-12' },
+        { id: '3', userId: mockUserId, mood: 20, moodLabel: '落ち込み', intensity: 1, createdAt: '2024-01-14' },
       ];
 
       (firestoreService.getUserMoodHistory as jest.Mock).mockResolvedValue(moodHistory);
@@ -187,7 +187,7 @@ describe('RiskCalculationService', () => {
 
     it('アプリ利用率が低い場合、リスクが上昇する', async () => {
       const moodHistory: MoodData[] = [
-        { id: '1', userId: mockUserId, moodLabel: '普通', intensity: 3, createdAt: '2024-01-01' },
+        { id: '1', userId: mockUserId, mood: 60, moodLabel: '普通', intensity: 3, createdAt: '2024-01-01' },
       ];
 
       (firestoreService.getUserMoodHistory as jest.Mock).mockResolvedValue(moodHistory);
@@ -216,7 +216,7 @@ describe('RiskCalculationService', () => {
       }));
 
       const moodHistory: MoodData[] = [
-        { id: '1', userId: mockUserId, moodLabel: '元気', intensity: 4, createdAt: '2024-01-14' },
+        { id: '1', userId: mockUserId, mood: 80, moodLabel: '元気', intensity: 4, createdAt: '2024-01-14' },
       ];
 
       (firestoreService.getUserMoodHistory as jest.Mock).mockResolvedValue(moodHistory);
@@ -328,6 +328,9 @@ describe('RiskCalculationService', () => {
           },
         },
         overallLevel: 'low' as const,
+        overallRiskLevel: 'low' as const,
+        overallRiskScore: 20,
+        priorityRisks: [],
         recommendations: ['現在の活動レベルを維持してください'],
         nextAssessmentDate: '2024-01-22T00:00:00.000Z',
       };
