@@ -20,6 +20,11 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(),
 }));
 
+// Mock AsyncStorage
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 // Pedometerモックのファクトリー関数
 const createPedometerMock = () => ({
   isAvailableAsync: jest.fn().mockResolvedValue(true),
@@ -116,6 +121,43 @@ jest.mock('@expo/vector-icons', () => {
     Zocial: mockIcon('Zocial'),
     EvilIcons: mockIcon('EvilIcons'),
   };
+});
+
+// Mock react-native-vector-icons
+jest.mock('react-native-vector-icons/MaterialIcons', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  return React.forwardRef((props, ref) => {
+    return React.createElement(View, { ...props, ref });
+  });
+});
+
+jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  return React.forwardRef((props, ref) => {
+    return React.createElement(View, { ...props, ref });
+  });
+});
+
+jest.mock('react-native-vector-icons/FontAwesome', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  return React.forwardRef((props, ref) => {
+    return React.createElement(View, { ...props, ref });
+  });
+});
+
+jest.mock('react-native-vector-icons/Ionicons', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  return React.forwardRef((props, ref) => {
+    return React.createElement(View, { ...props, ref });
+  });
 });
 
 // Silence console warnings in tests
