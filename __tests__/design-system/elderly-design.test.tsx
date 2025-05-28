@@ -21,11 +21,12 @@ describe('高齢者向けデザインシステム', () => {
       );
       
       const button = getByTestId('button');
-      const style = button.props.style;
+      const style = Array.isArray(button.props.style) ? button.props.style : [button.props.style];
+      const flattenedStyle = style.reduce((acc: any, s: any) => ({ ...acc, ...s }), {});
       
       // 最小タッチターゲット: 48dp (Android) / 44pt (iOS)
-      expect(style.minHeight).toBeGreaterThanOrEqual(48);
-      expect(style.minWidth).toBeGreaterThanOrEqual(48);
+      expect(flattenedStyle.minHeight).toBeGreaterThanOrEqual(48);
+      expect(flattenedStyle.minWidth).toBeGreaterThanOrEqual(48);
     });
 
     it('高いコントラスト比を持つ', () => {
@@ -85,10 +86,11 @@ describe('高齢者向けデザインシステム', () => {
       );
       
       const card = getByTestId('card');
-      const style = card.props.style;
+      const style = Array.isArray(card.props.style) ? card.props.style : [card.props.style];
+      const flattenedStyle = style.reduce((acc: any, s: any) => ({ ...acc, ...s }), {});
       
       // 高齢者向けには大きなパディングが必要
-      expect(style.padding).toBeGreaterThanOrEqual(16);
+      expect(flattenedStyle.padding).toBeGreaterThanOrEqual(16);
     });
 
     it('明確な境界線を持つ', () => {
@@ -99,18 +101,19 @@ describe('高齢者向けデザインシステム', () => {
       );
       
       const card = getByTestId('card');
-      const style = card.props.style;
+      const style = Array.isArray(card.props.style) ? card.props.style : [card.props.style];
+      const flattenedStyle = style.reduce((acc: any, s: any) => ({ ...acc, ...s }), {});
       
       // 境界線またはシャドウで明確に区分
-      expect(style.borderWidth || style.shadowOpacity).toBeDefined();
+      expect(flattenedStyle.borderWidth || flattenedStyle.shadowOpacity).toBeDefined();
     });
   });
 
   describe('ElderlyNavigationBar', () => {
     const mockNavigationItems = [
-      { key: 'home', label: 'ホーム', icon: 'home', onPress: jest.fn() },
-      { key: 'activity', label: '活動', icon: 'activity', onPress: jest.fn() },
-      { key: 'mood', label: '気分', icon: 'heart', onPress: jest.fn() },
+      { key: 'home', label: 'ホーム', icon: 'home' as const, onPress: jest.fn() },
+      { key: 'activity', label: '活動', icon: 'walk' as const, onPress: jest.fn() },
+      { key: 'mood', label: '気分', icon: 'heart' as const, onPress: jest.fn() },
     ];
 
     it('大きなナビゲーションボタンを持つ', () => {
@@ -125,16 +128,21 @@ describe('高齢者向けデザインシステム', () => {
       const navBar = getByTestId('nav-bar');
       const buttons = navBar.findAllByType('TouchableOpacity');
       
-      buttons.forEach(button => {
-        const style = button.props.style;
-        expect(style.minHeight).toBeGreaterThanOrEqual(60); // ナビゲーションは更に大きく
+      buttons.forEach((button: any) => {
+        const style = Array.isArray(button.props.style) ? button.props.style : [button.props.style];
+        const flattenedStyle = style.reduce((acc: any, s: any) => ({ ...acc, ...s }), {});
+        expect(flattenedStyle.minHeight).toBeGreaterThanOrEqual(60); // ナビゲーションは更に大きく
       });
     });
 
     it('テキストラベル付きアイコンを持つ', () => {
       const { getByText } = render(
         <ElderlyNavigationBar 
-          items={mockNavigationItems}
+          items={[
+            { key: 'home', label: 'ホーム', icon: 'home' as const, onPress: jest.fn() },
+            { key: 'activity', label: '活動', icon: 'walk' as const, onPress: jest.fn() },
+            { key: 'mood', label: '気分', icon: 'heart' as const, onPress: jest.fn() },
+          ]}
           activeKey="home"
         />
       );

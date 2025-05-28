@@ -31,7 +31,7 @@ import { elderlyTheme } from '../styles/elderly-theme';
 
 // サービス
 import { firestoreService } from '../services/firestoreService';
-import { calculateOverallRisk } from '../services/riskCalculationService';
+import { riskCalculationService } from '../services/riskCalculationService';
 
 // タイプ
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -67,12 +67,15 @@ export const ElderlyHomeScreen: React.FC<Props> = ({ navigation }) => {
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
 
+      // ユーザーIDを取得（仮のユーザーIDを使用）
+      const userId = 'user1'; // TODO: 実際のユーザーIDを取得する
+      
       // 並行してデータを取得（エラーハンドリングあり）
       const results = await Promise.allSettled([
-        firestoreService.getUserProfile(),
-        firestoreService.getLatestRiskAssessment(),
-        firestoreService.getTodayStepData(),
-        firestoreService.getTodayMoodData(),
+        firestoreService.getUserProfile(userId),
+        firestoreService.getLatestRiskAssessment(userId),
+        firestoreService.getTodaySteps(userId),
+        firestoreService.getTodayMoodData(userId),
       ]);
 
       // すべて失敗した場合はエラー状態に
@@ -91,8 +94,8 @@ export const ElderlyHomeScreen: React.FC<Props> = ({ navigation }) => {
 
       // リスクレベルを計算
       let riskLevel: 'low' | 'medium' | 'high' = 'low';
-      if (riskAssessment) {
-        const risk = calculateOverallRisk(riskAssessment);
+      if (riskAssessment && typeof riskAssessment === 'object' && 'overallRiskScore' in riskAssessment) {
+        const risk = riskAssessment.overallRiskScore;
         if (risk >= 70) riskLevel = 'high';
         else if (risk >= 40) riskLevel = 'medium';
       }
@@ -101,7 +104,7 @@ export const ElderlyHomeScreen: React.FC<Props> = ({ navigation }) => {
         userProfile,
         riskLevel,
         todaySteps: stepData?.steps || 0,
-        todayMood: moodData,
+        todayMood: Array.isArray(moodData) && moodData.length > 0 ? moodData[0] : null,
         loading: false,
         error: null,
       });
@@ -287,7 +290,7 @@ export const ElderlyHomeScreen: React.FC<Props> = ({ navigation }) => {
             {data.todayMood && (
               <View style={styles.moodDisplay}>
                 <Text style={styles.moodLabel}>今日の気分：</Text>
-                <Text style={styles.moodValue}>{data.todayMood.mood}</Text>
+                <Text style={styles.moodValue}>{data.todayMood.moodLabel || '記録済み'}</Text>
               </View>
             )}
           </View>

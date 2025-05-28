@@ -19,13 +19,15 @@ jest.mock('../../src/services/firestoreService', () => ({
   firestoreService: {
     getUserProfile: jest.fn(),
     getLatestRiskAssessment: jest.fn(),
-    getTodayStepData: jest.fn(),
+    getTodaySteps: jest.fn(),
     getTodayMoodData: jest.fn(),
   },
 }));
 
 jest.mock('../../src/services/riskCalculationService', () => ({
-  calculateOverallRisk: jest.fn(),
+  riskCalculationService: {
+    calculateOverallRisk: jest.fn(),
+  },
 }));
 
 const mockNavigation = {
@@ -38,7 +40,7 @@ describe('ElderlyHomeScreen', () => {
     
     // デフォルトで成功レスポンスを設定
     const { firestoreService } = require('../../src/services/firestoreService');
-    const { calculateOverallRisk } = require('../../src/services/riskCalculationService');
+    const { riskCalculationService } = require('../../src/services/riskCalculationService');
     
     firestoreService.getUserProfile.mockResolvedValue({
       id: 'user1',
@@ -55,7 +57,7 @@ describe('ElderlyHomeScreen', () => {
       createdAt: '2024-01-01',
     });
     
-    firestoreService.getTodayStepData.mockResolvedValue({
+    firestoreService.getTodaySteps.mockResolvedValue({
       id: 'step1',
       userId: 'user1',
       steps: 8500,
@@ -65,11 +67,12 @@ describe('ElderlyHomeScreen', () => {
     firestoreService.getTodayMoodData.mockResolvedValue({
       id: 'mood1',
       userId: 'user1',
-      mood: '良い',
-      date: '2024-01-01',
+      mood: 50,
+      moodLabel: '良い',
+      createdAt: '2024-01-01',
     });
     
-    calculateOverallRisk.mockReturnValue(30);
+    riskCalculationService.calculateOverallRisk.mockReturnValue(30);
   });
 
   describe('ダッシュボードレイアウト', () => {
@@ -198,7 +201,7 @@ describe('ElderlyHomeScreen', () => {
       const { firestoreService } = require('../../src/services/firestoreService');
       firestoreService.getUserProfile.mockRejectedValue(new Error('ネットワークエラー'));
       firestoreService.getLatestRiskAssessment.mockRejectedValue(new Error('ネットワークエラー'));
-      firestoreService.getTodayStepData.mockRejectedValue(new Error('ネットワークエラー'));
+      firestoreService.getTodaySteps.mockRejectedValue(new Error('ネットワークエラー'));
       firestoreService.getTodayMoodData.mockRejectedValue(new Error('ネットワークエラー'));
 
       const { getByText } = render(
@@ -217,7 +220,7 @@ describe('ElderlyHomeScreen', () => {
       const { firestoreService } = require('../../src/services/firestoreService');
       firestoreService.getUserProfile.mockRejectedValue(new Error('ネットワークエラー'));
       firestoreService.getLatestRiskAssessment.mockRejectedValue(new Error('ネットワークエラー'));
-      firestoreService.getTodayStepData.mockRejectedValue(new Error('ネットワークエラー'));
+      firestoreService.getTodaySteps.mockRejectedValue(new Error('ネットワークエラー'));
       firestoreService.getTodayMoodData.mockRejectedValue(new Error('ネットワークエラー'));
 
       const { getByTestId } = render(
@@ -240,7 +243,7 @@ describe('ElderlyHomeScreen', () => {
       // 永続的なPendingプロミスを作成してローディング状態を維持
       firestoreService.getUserProfile.mockReturnValue(new Promise(() => {}));
       firestoreService.getLatestRiskAssessment.mockReturnValue(new Promise(() => {}));
-      firestoreService.getTodayStepData.mockReturnValue(new Promise(() => {}));
+      firestoreService.getTodaySteps.mockReturnValue(new Promise(() => {}));
       firestoreService.getTodayMoodData.mockReturnValue(new Promise(() => {}));
 
       const { getByTestId } = render(
