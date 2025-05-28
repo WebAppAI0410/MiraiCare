@@ -34,6 +34,16 @@ export default {
     },
     platforms: ["ios", "android", "web"],
     scheme: "miraicare",
+    plugins: [
+      "expo-dev-client",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1B5E20"
+        }
+      ]
+    ],
     extra: {
       eas: {
         projectId: "aa4b92d9-b924-4b84-9911-9d2873366df5"
