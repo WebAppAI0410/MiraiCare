@@ -1,0 +1,162 @@
+name: EAS Update
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Update message'
+        required: false
+        default: 'Manual update'
+
+jobs:
+  update:
+    name: EAS Update
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - name: 🏗 チェックアウト
+        uses: actions/checkout@v4
+
+      - name: 🏗 Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: 📦 依存関係のインストール
+        run: npm ci
+
+      - name: 🔧 EAS CLIのセットアップ
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📱 プレビューアップデートの公開（PRの場合）
+        if: github.event_name == 'pull_request'
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          UPDATE_MESSAGE="PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
+          
+          # ブランチ名からチャンネル名を生成（英数字とハイフンのみ）
+          CHANNEL_NAME="pr-$(echo $BRANCH_NAME | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]' | cut -c1-30)"
+          
+          # EAS Updateを実行
+          eas update --branch $CHANNEL_NAME --message "$UPDATE_MESSAGE" --non-interactive
+          
+          # プレビュー情報を環境変数に保存
+          echo "CHANNEL_NAME=$CHANNEL_NAME" >> $GITHUB_ENV
+          echo "UPDATE_URL=exp://u.expo.dev/update/$CHANNEL_NAME" >> $GITHUB_ENV
+
+      - name: 💬 PRにプレビュー情報をコメント
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const channelName = process.env.CHANNEL_NAME;
+            const updateUrl = process.env.UPDATE_URL;
+            
+            const comment = `### 🚀 EAS Update プレビュー
+            
+            プレビューが公開されました！以下の方法で確認できます：
+            
+            #### 📱 Expo Goアプリで確認
+            1. [Expo Go](https://expo.dev/client)をインストール
+            2. アプリを開いて以下のリンクをタップ：
+               - 🔗 **${updateUrl}**
+            
+            #### 🖥 開発ビルドで確認
+            \`\`\`bash
+            # 既存の開発ビルドがある場合
+            eas update --branch ${channelName} --platform ios
+            eas update --branch ${channelName} --platform android
+            \`\`\`
+            
+            #### 📊 アップデート情報
+            - チャンネル: \`${channelName}\`
+            - PR: #${{ github.event.pull_request.number }}
+            - コミット: ${{ github.event.pull_request.head.sha }}
+            - 更新日時: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
+            `;
+            
+            // 既存のコメントを検索
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && comment.body.includes('EAS Update プレビュー')
+            );
+            
+            if (botComment) {
+              // 既存のコメントを更新
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment,
+              });
+            } else {
+              // 新しいコメントを作成
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment,
+              });
+            }
+
+      - name: 🚀 本番アップデートの公開（mainブランチ）
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          UPDATE_MESSAGE="${{ github.event.head_commit.message }}"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            UPDATE_MESSAGE="${{ github.event.inputs.message }}"
+          fi
+          
+          eas update --branch production --message "$UPDATE_MESSAGE" --non-interactive
+          
+          echo "✅ Production update published successfully!"
+          echo "🔗 Update URL: exp://u.expo.dev/update/production"
+
+      - name: 🧪 開発アップデートの公開（developブランチ）
+        if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+        run: |
+          UPDATE_MESSAGE="Development update: ${{ github.sha }}"
+          eas update --branch development --message "$UPDATE_MESSAGE" --non-interactive
+          
+          echo "✅ Development update published successfully!"
+          echo "🔗 Update URL: exp://u.expo.dev/update/development"
+
+      - name: 📋 アップデート情報の出力
+        if: success()
+        run: |
+          echo "### EAS Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "✅ Preview update published for PR #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 Preview URL: ${{ env.UPDATE_URL }}" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "✅ Production update published" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 Production URL: exp://u.expo.dev/update/production" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            echo "✅ Development update published" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 Development URL: exp://u.expo.dev/update/development" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
