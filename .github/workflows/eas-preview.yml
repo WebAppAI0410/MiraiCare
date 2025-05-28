@@ -1,0 +1,116 @@
+name: EAS Preview QR Code
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_run:
+    workflows: ["EAS Update"]
+    types: [completed]
+
+jobs:
+  generate-qr:
+    name: Generate Preview QR Code
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: read
+      pull-requests: write
+      
+    steps:
+      - name: 🏗 チェックアウト
+        uses: actions/checkout@v4
+
+      - name: 📱 QRコード生成とコメント投稿
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request?.number || 
+                           context.payload.workflow_run?.pull_requests[0]?.number;
+            
+            if (!prNumber) {
+              console.log('No PR number found');
+              return;
+            }
+            
+            // ブランチ名からチャンネル名を生成
+            const branch = context.payload.pull_request?.head.ref || 
+                          context.payload.workflow_run?.head_branch;
+            const channelName = `pr-${branch.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase()}`;
+            
+            // Expo URLを生成
+            const expoUrl = `exp://u.expo.dev/update/${channelName}`;
+            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(expoUrl)}`;
+            
+            // PRコメントの内容を生成
+            const comment = `## 📱 MiraiCare プレビュー
+
+このPRの最新版をスマートフォンで確認できます！
+
+### 🔍 確認方法
+
+#### 方法1: QRコードをスキャン
+<details>
+<summary>QRコードを表示</summary>
+
+![QR Code](${qrApiUrl})
+
+</details>
+
+#### 方法2: Expo Goアプリでリンクを開く
+1. [Expo Go](https://expo.dev/client)をインストール
+2. 以下のリンクをタップまたはコピー：
+   - 📱 **${expoUrl}**
+
+#### 方法3: 開発ビルドで確認
+\`\`\`bash
+# iOSの場合
+eas update --branch ${channelName} --platform ios
+
+# Androidの場合
+eas update --branch ${channelName} --platform android
+\`\`\`
+
+### 📊 プレビュー情報
+- **チャンネル**: \`${channelName}\`
+- **更新日時**: ${new Date().toISOString()}
+- **コミット**: ${context.sha.substring(0, 7)}
+
+### ⚠️ 注意事項
+- Expo Goアプリが必要です
+- ネイティブコードの変更は反映されません
+- 開発ビルドが必要な機能もあります
+
+---
+<sub>🤖 このコメントは自動生成されました</sub>`;
+
+            // 既存のコメントを探す
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('MiraiCare プレビュー')
+            );
+            
+            if (botComment) {
+              // 既存のコメントを更新
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment,
+              });
+            } else {
+              // 新しいコメントを作成
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: comment,
+              });
+            }
+            
+            console.log(`✅ Preview comment posted for PR #${prNumber}`);
