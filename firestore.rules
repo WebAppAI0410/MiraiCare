@@ -151,6 +151,69 @@ service cloud.firestore {
       allow delete: if isResourceOwner();
     }
     
+    // ユーザープロファイルコレクション
+    match /userProfiles/{userId} {
+      allow read: if isOwner(userId);
+      
+      allow create: if isOwner(userId) && 
+                      request.resource.data.keys().hasAll(['userId', 'email', 'fullName', 'createdAt', 'updatedAt']) &&
+                      request.resource.data.userId == userId &&
+                      request.resource.data.email is string &&
+                      request.resource.data.fullName is string;
+      
+      allow update: if isOwner(userId) &&
+                      request.resource.data.userId == userId;
+      
+      allow delete: if false; // プロファイル削除は禁止
+    }
+    
+    // リスクアセスメントコレクション
+    match /riskAssessments/{assessmentId} {
+      allow read: if isAuthenticated() && 
+                     (resource == null || resource.data.userId == request.auth.uid);
+      
+      allow create: if isNewResourceOwner() &&
+                      request.resource.data.keys().hasAll(['userId', 'assessmentDate', 'overallRiskLevel']) &&
+                      request.resource.data.overallRiskLevel in ['low', 'medium', 'high'] &&
+                      request.resource.data.assessmentDate is string;
+      
+      allow update: if isResourceOwner() &&
+                      request.resource.data.userId == resource.data.userId;
+      
+      allow delete: if false; // アセスメント削除は禁止
+    }
+    
+    // 歩数データコレクション
+    match /stepData/{stepId} {
+      allow read: if isAuthenticated() && 
+                     (resource == null || resource.data.userId == request.auth.uid);
+      
+      allow create: if isNewResourceOwner() &&
+                      request.resource.data.keys().hasAll(['userId', 'date', 'steps']) &&
+                      request.resource.data.date is string &&
+                      request.resource.data.steps is int &&
+                      request.resource.data.steps >= 0;
+      
+      allow update: if isResourceOwner() &&
+                      request.resource.data.userId == resource.data.userId;
+      
+      allow delete: if isResourceOwner();
+    }
+    
+    // 通知履歴コレクション
+    match /notificationHistory/{historyId} {
+      allow read: if isAuthenticated() && 
+                     (resource == null || resource.data.userId == request.auth.uid);
+      
+      allow create: if isNewResourceOwner() &&
+                      request.resource.data.keys().hasAll(['userId', 'type', 'sentAt']) &&
+                      request.resource.data.type is string &&
+                      request.resource.data.sentAt is string;
+      
+      allow update: if false; // 履歴は変更不可
+      allow delete: if false; // 履歴は削除不可
+    }
+    
     // ===============================
     // 管理者専用コレクション（将来の拡張用）
     // ===============================
