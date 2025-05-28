@@ -9,6 +9,7 @@ export interface User {
   emergencyContact?: string;
   lineNotifyToken?: string;
   emailVerified?: boolean;
+  isAnonymous?: boolean;
   createdAt: string;
   updatedAt: string;
 }
