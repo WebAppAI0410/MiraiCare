@@ -38,6 +38,9 @@ import {
   getIconSize,
 } from '../utils/responsive';
 
+// Firebase Auth
+import { auth } from '../config/firebase';
+
 // テーマ
 import { elderlyTheme } from '../styles/elderly-theme';
 import { Colors } from '../types';
@@ -82,8 +85,12 @@ export const ResponsiveElderlyHomeScreen: React.FC<Props> = ({ navigation }) => 
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
 
-      // ユーザーIDを取得（仮のユーザーIDを使用）
-      const userId = 'user1'; // TODO: 実際のユーザーIDを取得する
+      // 現在の認証ユーザーIDを取得
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('ログインしていません');
+      }
+      const userId = currentUser.uid;
       
       // 並行してデータを取得（エラーハンドリングあり）
       const results = await Promise.allSettled([
@@ -340,6 +347,27 @@ export const ResponsiveElderlyHomeScreen: React.FC<Props> = ({ navigation }) => 
             </View>
           ))}
         </View>
+
+        {/* 開発者モード（デバッグ用） */}
+        {__DEV__ && (
+          <View style={styles.devToolsContainer}>
+            <AccessibleButton
+              title="開発者ツール"
+              onPress={() => navigation.navigate('DevTools' as any)}
+              variant="primary"
+              size="small"
+              icon={
+                <Icon 
+                  name="build" 
+                  size={getIconSize(20)} 
+                  color={Colors.surface}
+                />
+              }
+              accessibilityLabel="開発者ツールを開く"
+              fullWidth
+            />
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -430,5 +458,9 @@ const styles = StyleSheet.create({
     width: '48%',
     marginBottom: responsiveSpacing(12),
     marginRight: '2%',
+  },
+  devToolsContainer: {
+    marginTop: responsiveSpacing(32),
+    paddingHorizontal: responsiveSpacing(16),
   },
 });
