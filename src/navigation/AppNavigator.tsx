@@ -14,6 +14,7 @@ import BadgesScreen from '../screens/BadgesScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import { ChartsScreen } from '../screens/ChartsScreen';
 import { ReportScreen } from '../screens/ReportScreen';
+import { DevToolsScreen } from '../screens/DevToolsScreen';
 import { Colors } from '../types';
 
 const Tab = createBottomTabNavigator();
@@ -139,6 +140,18 @@ export default function AppNavigator({ showOnboarding, onOnboardingComplete }: A
           options={{
             headerShown: true,
             title: 'レポート',
+            headerStyle: {
+              backgroundColor: Colors.primary,
+            },
+            headerTintColor: Colors.white,
+          }}
+        />
+        <Stack.Screen 
+          name="DevTools" 
+          component={DevToolsScreen}
+          options={{
+            headerShown: true,
+            title: '開発者ツール',
             headerStyle: {
               backgroundColor: Colors.primary,
             },
