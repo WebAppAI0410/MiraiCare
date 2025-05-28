@@ -32,6 +32,7 @@ import { elderlyTheme } from '../styles/elderly-theme';
 // サービス
 import { firestoreService } from '../services/firestoreService';
 import { riskCalculationService } from '../services/riskCalculationService';
+import { getCurrentUser } from '../services/authService';
 
 // タイプ
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -67,8 +68,12 @@ export const ElderlyHomeScreen: React.FC<Props> = ({ navigation }) => {
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
 
-      // ユーザーIDを取得（仮のユーザーIDを使用）
-      const userId = 'user1'; // TODO: 実際のユーザーIDを取得する
+      // 現在のユーザーを取得
+      const currentUser = await getCurrentUser();
+      if (!currentUser) {
+        throw new Error('ログインが必要です');
+      }
+      const userId = currentUser.id;
       
       // 並行してデータを取得（エラーハンドリングあり）
       const results = await Promise.allSettled([
@@ -81,7 +86,7 @@ export const ElderlyHomeScreen: React.FC<Props> = ({ navigation }) => {
       // すべて失敗した場合はエラー状態に
       const allFailed = results.every(result => result.status === 'rejected');
       if (allFailed) {
-        throw new Error('すべてのデータ取得に失敗しました');
+        throw new Error('すべてのデータ取得に失敗しました。データベースの権限設定を確認してください。');
       }
 
       // 成功した結果を取得

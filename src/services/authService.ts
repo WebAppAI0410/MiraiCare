@@ -8,6 +8,7 @@ import {
   User as FirebaseUser,
   AuthError,
   sendEmailVerification,
+  signInAnonymously,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, COLLECTIONS } from '../config/firebase';
@@ -236,4 +237,107 @@ export const checkEmailVerification = async (): Promise<boolean> => {
   // ユーザー情報を再読み込み
   await firebaseUser.reload();
   return firebaseUser.emailVerified;
+};
+
+// 匿名認証でサインイン
+export const signInAsGuest = async (): Promise<User> => {
+  try {
+    console.log('[authService] Starting anonymous sign in');
+    const userCredential = await signInAnonymously(auth);
+    const firebaseUser = userCredential.user;
+    console.log('[authService] Anonymous user created:', firebaseUser.uid);
+    
+    // Firestoreに匿名ユーザー情報を保存
+    const guestUser: User = {
+      id: firebaseUser.uid,
+      email: '',
+      fullName: 'ゲストユーザー',
+      isAnonymous: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    // 匿名ユーザーのプロファイルを作成
+    await setDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid), guestUser);
+    
+    // 匿名ユーザー用のプロファイルも作成（userProfilesコレクション）
+    await setDoc(doc(db, 'userProfiles', firebaseUser.uid), {
+      userId: firebaseUser.uid,
+      fullName: 'ゲストユーザー',
+      isAnonymous: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    
+    console.log('[authService] Anonymous sign in completed');
+    return guestUser;
+  } catch (error) {
+    console.error('[authService] Anonymous sign in error:', error);
+    throw new Error('ゲストログインに失敗しました。しばらく時間をおいてから再度お試しください。');
+  }
+};
+
+// 匿名ユーザーかどうかを確認
+export const isAnonymousUser = (): boolean => {
+  const firebaseUser = auth.currentUser;
+  return firebaseUser ? firebaseUser.isAnonymous : false;
+};
+
+// 匿名ユーザーを正式なアカウントに変換
+export const convertAnonymousToAccount = async (
+  email: string,
+  password: string,
+  fullName: string
+): Promise<User> => {
+  const firebaseUser = auth.currentUser;
+  
+  if (!firebaseUser || !firebaseUser.isAnonymous) {
+    throw new Error('匿名ユーザーではありません');
+  }
+  
+  try {
+    // EmailAuthProviderを使用してクレデンシャルを作成
+    const { EmailAuthProvider } = await import('firebase/auth');
+    const credential = EmailAuthProvider.credential(email, password);
+    
+    // 匿名アカウントをメールアカウントにリンク
+    await firebaseUser.linkWithCredential(credential);
+    
+    // プロフィール更新
+    await updateProfile(firebaseUser, {
+      displayName: fullName,
+    });
+    
+    // Firestoreのユーザー情報を更新
+    const userId = firebaseUser.uid;
+    await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
+      email,
+      fullName,
+      isAnonymous: false,
+      updatedAt: new Date().toISOString(),
+    });
+    
+    // userProfilesも更新
+    await updateDoc(doc(db, 'userProfiles', userId), {
+      email,
+      fullName,
+      isAnonymous: false,
+      updatedAt: new Date(),
+    });
+    
+    // 更新されたユーザー情報を返す
+    const updatedUser: User = {
+      id: userId,
+      email,
+      fullName,
+      isAnonymous: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    return updatedUser;
+  } catch (error) {
+    console.error('[authService] Convert anonymous account error:', error);
+    throw handleAuthError(error as AuthError);
+  }
 };

@@ -7,10 +7,11 @@ import SignupScreen from './src/screens/SignupScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import GuestHomeScreen from './src/screens/GuestHomeScreen';
 import PromptLoginScreen from './src/screens/PromptLoginScreen';
-import { subscribeToAuthState } from './src/services/authService';
+import { subscribeToAuthState, signInAsGuest } from './src/services/authService';
 import { User, Colors, AppState } from './src/types';
 import { notificationService } from './src/services/notificationService';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // SYNTAX ERRORS FIXED AFTER SUCCESSFUL CI AUTOFIX TEST
 // const intentionallyBroken = ;
@@ -34,34 +35,67 @@ export default function App() {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // 通知リスナーの設定
-    notificationService.setupNotificationListeners();
-    
-    // 認証状態の監視
-    const unsubscribe = subscribeToAuthState((currentUser) => {
-      setUser(currentUser);
-      setIsLoading(false);
+    const initializeApp = async () => {
+      // 通知リスナーの設定
+      notificationService.setupNotificationListeners();
       
-      if (currentUser) {
-        // 認証済みユーザー → メインアプリ
-        setAppState('authenticated');
-      } else if (hasSeenOnboarding) {
-        // オンボーディング済み → ゲスト体験
-        setAppState('guest_experience');
-      } else {
-        // 初回起動 → オンボーディング
-        setAppState('onboarding');
-      }
-    });
+      // オンボーディング状態を確認
+      const onboardingComplete = await AsyncStorage.getItem('onboardingComplete');
+      setHasSeenOnboarding(onboardingComplete === 'true');
+      
+      // 認証状態の監視
+      const unsubscribe = subscribeToAuthState(async (currentUser) => {
+        setUser(currentUser);
+        
+        if (currentUser) {
+          // 認証済みユーザー → ダッシュボード
+          setAppState('authenticated');
+        } else if (!isInitialized) {
+          // 未認証で初回起動
+          if (onboardingComplete === 'true') {
+            // オンボーディング済み → 自動的に匿名認証
+            try {
+              await signInAsGuest();
+              setAppState('authenticated');
+            } catch (error) {
+              console.error('匿名認証エラー:', error);
+              setAppState('guest_experience');
+            }
+          } else {
+            // 初回起動 → オンボーディング
+            setAppState('onboarding');
+          }
+        }
+        
+        setIsLoading(false);
+        setIsInitialized(true);
+      });
 
-    return unsubscribe;
-  }, [hasSeenOnboarding]);
+      return unsubscribe;
+    };
+    
+    initializeApp();
+  }, [isInitialized]);
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = async () => {
+    // オンボーディング完了を保存
+    await AsyncStorage.setItem('onboardingComplete', 'true');
     setHasSeenOnboarding(true);
-    setAppState('guest_experience');
+    
+    // 自動的に匿名認証
+    setIsLoading(true);
+    try {
+      await signInAsGuest();
+      setAppState('authenticated');
+    } catch (error) {
+      console.error('匿名認証エラー:', error);
+      setAppState('guest_experience');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePromptLogin = () => {
