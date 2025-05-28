@@ -35,6 +35,9 @@ export default {
     platforms: ["ios", "android", "web"],
     scheme: "miraicare",
     extra: {
+      eas: {
+        projectId: "aa4b92d9-b924-4b84-9911-9d2873366df5"
+      },
       // Firebase Web SDK設定
       firebaseApiKey: "AIzaSyDxxs-Oxtw_SSV_nIe1knYpEJIOpQ9QoJM",
       firebaseAuthDomain: "miraicare-360-mvp.firebaseapp.com",
