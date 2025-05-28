@@ -157,9 +157,11 @@ const MoodMirrorScreen: React.FC = () => {
       if (currentUser) {
         await saveMoodDataToFirebase({
           userId: currentUser.uid,
+          mood: moodAnalysis.intensity * 20, // 1-5を0-100スケールに変換
           moodLabel: moodAnalysis.mood_label,
           intensity: moodAnalysis.intensity,
           suggestion: moodAnalysis.suggestion,
+          note: sessionAnswers.join(' / '), // 回答をメモとして保存
           notes: sessionAnswers.join(' / '), // 回答をメモとして保存
         });
       }

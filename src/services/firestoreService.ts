@@ -16,11 +16,11 @@ import {
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../config/firebase';
 import { 
-  UserProfile, 
   VitalData, 
   VitalDataDocument
 } from '../types/userData';
 import { 
+  UserProfile,
   Reminder,
   Badge,
   MoodData,
@@ -69,10 +69,29 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
       const data = userDoc.data();
       return {
         id: userDoc.id,
-        name: data.name,
-        age: data.age,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
-        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt),
+        email: data.email || '',
+        fullName: data.fullName || data.name,
+        avatarUrl: data.avatarUrl,
+        phone: data.phone,
+        birthDate: data.birthDate,
+        emergencyContact: data.emergencyContact,
+        lineNotifyToken: data.lineNotifyToken,
+        emailVerified: data.emailVerified || false,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAt).toISOString(),
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date(data.updatedAt).toISOString(),
+        // UserSettings properties
+        stepTarget: data.stepTarget,
+        strideLength: data.strideLength,
+        weight: data.weight,
+        height: data.height,
+        activityLevel: data.activityLevel,
+        notifications: data.notifications || {
+          enabled: false,
+          hydrationReminder: false,
+          medicationReminder: false,
+          dailyReport: false,
+          riskAlerts: false,
+        },
       };
     }
     
@@ -454,12 +473,15 @@ export const getUserMoodHistory = async (
       return {
         id: docSnapshot.id,
         userId: data.userId,
+        mood: data.mood || (data.intensity ? data.intensity * 20 : 50), // intensityから変換
+        energy: data.energy,
         moodLabel: data.moodLabel,
         intensity: data.intensity,
         suggestion: data.suggestion,
+        note: data.note || data.notes,
         notes: data.notes,
         createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
-      };
+      } as MoodData;
     });
   } catch (error) {
     console.error('ムードデータ履歴取得エラー:', error);
@@ -497,9 +519,12 @@ export const getTodayMoodData = async (userId: string): Promise<MoodData[]> => {
       return {
         id: docSnapshot.id,
         userId: data.userId,
+        mood: data.mood || (data.intensity ? data.intensity * 20 : 50), // intensityから変換
+        energy: data.energy,
         moodLabel: data.moodLabel,
         intensity: data.intensity,
         suggestion: data.suggestion,
+        note: data.note || data.notes,
         notes: data.notes,
         createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
       };
@@ -695,4 +720,62 @@ export const getNotificationHistory = async (
     console.error('通知履歴取得エラー:', error);
     return [];
   }
+};
+
+// サービスオブジェクトとしてエクスポート
+export const firestoreService = {
+  // ユーザー関連
+  createUserProfile,
+  updateUserProfile,
+  getUserProfile,
+  deleteUserProfile,
+  getUserSettings: getUserProfile,
+  updateUserSettings,
+  
+  // バイタルデータ関連
+  saveVitalData,
+  getVitalData,
+  getTodayVitalData,
+  getUserVitalHistory,
+  
+  // 歩数データ関連（エイリアス）
+  getTodaySteps: getTodayVitalData,
+  saveDailySteps: saveVitalData,
+  getStepHistory: getUserVitalHistory,
+  updateUserStepGoal: updateUserSettings,
+  
+  // バッジ関連
+  getUserBadges,
+  unlockBadge,
+  
+  // リマインダー関連
+  createReminder,
+  saveReminder: createReminder,
+  getUserReminders,
+  updateReminder: updateReminderStatus,
+  updateReminderStatus,
+  deleteReminder: async (id: string) => { /* TODO */ },
+  
+  // ムードデータ関連
+  saveMoodData,
+  getUserMoodHistory,
+  getDailyMoodData: getUserMoodHistory,
+  getTodayMoodData,
+  
+  // 水分摂取関連（TODO: 実装が必要）
+  getWaterIntake: async (userId: string) => ({ current: 0, target: 8 }),
+  updateWaterIntake: async (userId: string, amount: number) => ({ success: true }),
+  
+  // リスクアセスメント関連
+  saveRiskAssessment,
+  getLatestRiskAssessment,
+  getRiskAssessmentHistory,
+  
+  // 通知履歴関連
+  saveNotificationHistory,
+  getNotificationHistory,
+  
+  // 統計関連（TODO: 実装が必要）
+  getStepStatistics: async (userId: string) => ({ daily: 0, weekly: 0, monthly: 0 }),
+  calculateDailyAverage: async (data: any[]) => 0,
 };

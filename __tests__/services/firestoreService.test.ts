@@ -9,7 +9,8 @@ import {
   getVitalData,
   getUserVitalHistory 
 } from '../../src/services/firestoreService';
-import { UserProfile, VitalData } from '../../src/types/userData';
+import { VitalData } from '../../src/types/userData';
+import { UserProfile } from '../../src/types';
 import * as firestore from 'firebase/firestore';
 
 // Firebaseモックの設定
@@ -37,10 +38,28 @@ describe('FirestoreService', () => {
   describe('UserProfile関連', () => {
     const mockUserProfile: UserProfile = {
       id: 'user123',
-      name: '田中太郎',
-      age: 75,
-      createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
+      email: 'tanaka@example.com',
+      fullName: '田中太郎',
+      avatarUrl: undefined,
+      phone: undefined,
+      birthDate: undefined,
+      emergencyContact: undefined,
+      lineNotifyToken: undefined,
+      emailVerified: false,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      stepTarget: undefined,
+      strideLength: undefined,
+      weight: undefined,
+      height: undefined,
+      activityLevel: undefined,
+      notifications: {
+        enabled: false,
+        hydrationReminder: false,
+        medicationReminder: false,
+        dailyReport: false,
+        riskAlerts: false,
+      },
     };
 
     describe('createUserProfile', () => {
@@ -53,8 +72,8 @@ describe('FirestoreService', () => {
 
         // When: ユーザープロファイルを作成
         const result = await createUserProfile({
-          name: '田中太郎',
-          age: 75,
+          email: 'tanaka@example.com',
+          fullName: '田中太郎',
         });
 
         // Then: 正しく作成される
@@ -63,8 +82,8 @@ describe('FirestoreService', () => {
         expect(firestore.addDoc).toHaveBeenCalledWith(
           'mock-collection',
           expect.objectContaining({
-            name: '田中太郎',
-            age: 75,
+            email: 'tanaka@example.com',
+            fullName: '田中太郎',
             createdAt: 'timestamp',
             updatedAt: 'timestamp',
           })
@@ -77,7 +96,7 @@ describe('FirestoreService', () => {
         (firestore.collection as jest.Mock).mockReturnValue('mock-collection');
 
         // When & Then: エラーが投げられる
-        await expect(createUserProfile({ name: '田中太郎', age: 75 }))
+        await expect(createUserProfile({ email: 'tanaka@example.com', fullName: '田中太郎' }))
           .rejects
           .toThrow('ユーザープロファイルの作成に失敗しました');
       });
@@ -90,8 +109,8 @@ describe('FirestoreService', () => {
           id: 'user123',
           exists: () => true,
           data: () => ({
-            name: '田中太郎',
-            age: 75,
+            email: 'tanaka@example.com',
+            fullName: '田中太郎',
             createdAt: new Date('2024-01-01'),
             updatedAt: new Date('2024-01-01'),
           }),
@@ -144,8 +163,7 @@ describe('FirestoreService', () => {
 
         // When: ユーザープロファイルを更新
         await updateUserProfile('user123', {
-          name: '田中次郎',
-          age: 76,
+          fullName: '田中次郎',
         });
 
         // Then: 正しく更新される
@@ -153,8 +171,7 @@ describe('FirestoreService', () => {
         expect(firestore.updateDoc).toHaveBeenCalledWith(
           'mock-doc-ref',
           expect.objectContaining({
-            name: '田中次郎',
-            age: 76,
+            fullName: '田中次郎',
             updatedAt: 'timestamp',
           })
         );
@@ -166,7 +183,7 @@ describe('FirestoreService', () => {
         (firestore.doc as jest.Mock).mockReturnValue('mock-doc-ref');
 
         // When & Then: エラーが投げられる
-        await expect(updateUserProfile('user123', { name: '田中次郎' }))
+        await expect(updateUserProfile('user123', { fullName: '田中次郎' }))
           .rejects
           .toThrow('ユーザープロファイルの更新に失敗しました');
       });

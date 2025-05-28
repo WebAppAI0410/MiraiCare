@@ -28,6 +28,7 @@ export interface VitalData {
 export interface StepData {
   date: string; // YYYY-MM-DD形式
   steps: number;
+  userId?: string;
   distance?: number; // km
   calories?: number; // kcal
   activeTime?: number; // 分
@@ -51,6 +52,20 @@ export interface UserSettings {
   weight?: number; // 体重（kg）
   height?: number; // 身長（cm）
   activityLevel?: 'low' | 'moderate' | 'high'; // 活動レベル
+  notifications?: {
+    enabled: boolean;
+    hydrationReminder?: boolean;
+    medicationReminder?: boolean;
+    dailyReport?: boolean;
+    riskAlerts?: boolean;
+  };
+}
+
+// ユーザープロファイルの型定義
+export interface UserProfile extends User, UserSettings {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // リスクレベルの型定義
@@ -90,21 +105,25 @@ export interface FrailtyRisk {
     weeklyAverage: number; // 週間平均歩数
     monthlyTrend: 'improving' | 'stable' | 'declining'; // 月間トレンド
     activityDays: number; // 過去7日間の活動日数
+    activeDays?: number; // 過去7日間の活動日数（エイリアス）
     goalAchievementRate: number; // 目標達成率（%）
+    stepTarget?: number; // 歩数目標
   };
 }
 
 // メンタルヘルスリスクの型定義
 export interface MentalHealthRisk {
-  type: 'mental';
+  type: 'mentalHealth' | 'mental';
   level: RiskLevel;
   score: number;
   factors: string[];
   lastUpdated: string;
   indicators: {
     moodScore: number; // 気分スコア（0-100）
-    socialActivity: 'high' | 'moderate' | 'low'; // 社会活動レベル
-    engagementLevel: number; // アプリ利用率（0-100）
+    socialActivity?: 'high' | 'moderate' | 'low'; // 社会活動レベル
+    engagementLevel?: number; // アプリ利用率（0-100）
+    appEngagement?: number; // アプリ利用日数
+    lastMoodUpdate?: string; // 最後の気分更新日時
   };
 }
 
@@ -116,6 +135,9 @@ export interface OverallRiskAssessment {
   frailtyRisk: FrailtyRisk;
   mentalHealthRisk: MentalHealthRisk;
   overallLevel: RiskLevel; // 総合リスクレベル
+  overallRiskLevel: RiskLevel; // 総合リスクレベル（エイリアス）
+  overallRiskScore: number; // 総合リスクスコア（0-100）
+  priorityRisks: string[]; // 優先対応が必要なリスク
   recommendations: string[]; // 改善提案
   nextAssessmentDate: string; // 次回評価予定日
 }
@@ -124,9 +146,12 @@ export interface OverallRiskAssessment {
 export interface MoodData {
   id: string;
   userId: string;
-  moodLabel: string;
-  intensity: number; // 1-5のスケール
+  mood: number; // 0-100のスコア
+  energy?: number; // エネルギーレベル (0-100)
+  moodLabel?: string;
+  intensity?: number; // 1-5のスケール
   suggestion?: string;
+  note?: string;
   notes?: string;
   createdAt: string;
 }

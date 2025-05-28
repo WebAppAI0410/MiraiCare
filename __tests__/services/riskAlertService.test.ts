@@ -50,10 +50,12 @@ describe('RiskAlertService', () => {
     const createMockRiskAssessment = (overallLevel: RiskLevel): OverallRiskAssessment => ({
       userId: mockUserId,
       assessmentDate: new Date().toISOString(),
+      overallLevel: overallLevel,
       overallRiskLevel: overallLevel,
       overallRiskScore: overallLevel === 'high' ? 70 : overallLevel === 'medium' ? 40 : 20,
       priorityRisks: [],
       recommendations: [],
+      nextAssessmentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       fallRisk: {
         type: 'fall',
         level: overallLevel,
@@ -75,8 +77,10 @@ describe('RiskAlertService', () => {
         lastUpdated: new Date().toISOString(),
         indicators: {
           weeklyAverage: 5000,
-          monthlyTrend: 0,
+          monthlyTrend: 'stable' as const,
           activeDays: 6,
+          activityDays: 6,
+          goalAchievementRate: 75,
           stepTarget: 5000,
         },
       },
@@ -99,18 +103,17 @@ describe('RiskAlertService', () => {
       
       await riskAlertService.checkAndSendRiskAlerts(mockUserId, highRiskAssessment);
       
-      expect(notificationService.scheduleNotification).toHaveBeenCalledWith({
-        title: '⚠️ 健康リスクアラート',
-        body: '健康状態に注意が必要です。詳細を確認してください。',
-        data: { 
+      expect(notificationService.scheduleNotification).toHaveBeenCalledWith(
+        '⚠️ 健康リスクアラート',
+        '健康状態に注意が必要です。詳細を確認してください。',
+        expect.any(Date), // 即座に送信
+        { 
           type: 'risk-alert',
           userId: mockUserId,
           riskLevel: 'high',
           assessmentId: expect.any(String),
-        },
-        priority: 'high',
-        trigger: null, // 即座に送信
-      });
+        }
+      );
     });
 
     it('中リスクの場合、注意喚起通知を送信する', async () => {
@@ -118,18 +121,17 @@ describe('RiskAlertService', () => {
       
       await riskAlertService.checkAndSendRiskAlerts(mockUserId, mediumRiskAssessment);
       
-      expect(notificationService.scheduleNotification).toHaveBeenCalledWith({
-        title: '📊 健康状態の確認',
-        body: '健康指標に変化が見られます。アプリで詳細をご確認ください。',
-        data: { 
+      expect(notificationService.scheduleNotification).toHaveBeenCalledWith(
+        '📊 健康状態の確認',
+        '健康指標に変化が見られます。アプリで詳細をご確認ください。',
+        expect.any(Date),
+        { 
           type: 'risk-alert',
           userId: mockUserId,
           riskLevel: 'medium',
           assessmentId: expect.any(String),
-        },
-        priority: 'default',
-        trigger: null,
-      });
+        }
+      );
     });
 
     it('低リスクの場合、通知を送信しない', async () => {
@@ -231,6 +233,7 @@ describe('RiskAlertService', () => {
           data: { type: 'periodic-check', userId: mockUserId },
         },
         trigger: {
+          type: 'daily',
           hour: 10,
           minute: 0,
           repeats: true,
@@ -242,10 +245,12 @@ describe('RiskAlertService', () => {
   const createMockRiskAssessment = (overallLevel: RiskLevel): OverallRiskAssessment => ({
     userId: mockUserId,
     assessmentDate: new Date().toISOString(),
+    overallLevel: overallLevel,
     overallRiskLevel: overallLevel,
     overallRiskScore: overallLevel === 'high' ? 70 : overallLevel === 'medium' ? 40 : 20,
     priorityRisks: [],
     recommendations: [],
+    nextAssessmentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     fallRisk: {
       type: 'fall',
       level: overallLevel,
@@ -267,8 +272,10 @@ describe('RiskAlertService', () => {
       lastUpdated: new Date().toISOString(),
       indicators: {
         weeklyAverage: 5000,
-        monthlyTrend: 0,
+        monthlyTrend: 'stable' as const,
         activeDays: 6,
+        activityDays: 6,
+        goalAchievementRate: 75,
         stepTarget: 5000,
       },
     },

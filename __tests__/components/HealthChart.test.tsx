@@ -4,26 +4,29 @@ import { HealthChart } from '../../src/components/HealthChart';
 import { StepData, MoodData } from '../../src/types';
 
 // react-native-chart-kitのモック
-jest.mock('react-native-chart-kit', () => ({
-  LineChart: ({ data, ...props }: any) => {
-    const testID = props.testID || 'line-chart';
-    return <mockLineChart 
-      testID={testID} 
-      data={JSON.stringify(data)}
-      accessibilityLabel={props.accessibilityLabel}
-      accessibilityRole={props.accessibilityRole}
-    />;
-  },
-  BarChart: ({ data, ...props }: any) => {
-    const testID = props.testID || 'bar-chart';
-    return <mockBarChart 
-      testID={testID} 
-      data={JSON.stringify(data)}
-      accessibilityLabel={props.accessibilityLabel}
-      accessibilityRole={props.accessibilityRole}
-    />;
-  },
-}));
+jest.mock('react-native-chart-kit', () => {
+  const React = require('react');
+  return {
+    LineChart: ({ data, ...props }: any) => {
+      const testID = props.testID || 'line-chart';
+      return React.createElement('View', {
+        testID,
+        'data-data': JSON.stringify(data),
+        accessibilityLabel: props.accessibilityLabel,
+        accessibilityRole: props.accessibilityRole,
+      });
+    },
+    BarChart: ({ data, ...props }: any) => {
+      const testID = props.testID || 'bar-chart';
+      return React.createElement('View', {
+        testID,
+        'data-data': JSON.stringify(data),
+        accessibilityLabel: props.accessibilityLabel,
+        accessibilityRole: props.accessibilityRole,
+      });
+    },
+  };
+});
 
 // react-native-svgのモック
 jest.mock('react-native-svg', () => ({

@@ -207,7 +207,7 @@ const HomeScreen: React.FC = () => {
       if (moodHistory.length > 0) {
         // 最新のムードを設定
         const latestMood = moodHistory[0];
-        setCurrentMood(latestMood.moodLabel);
+        setCurrentMood(latestMood.moodLabel || '未設定');
       }
 
       // バッジ数の取得

@@ -9,11 +9,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { HealthChart } from '../components/HealthChart';
 import { Colors, Spacing } from '../types';
-import {
-  getStepHistory,
-  getUserMoodHistory,
-  getRiskAssessmentHistory,
-} from '../services/firestoreService';
+import { firestoreService } from '../services/firestoreService';
 import { auth } from '../config/firebase';
 import { StepData, MoodData } from '../types';
 
@@ -43,9 +39,9 @@ export const ChartsScreen: React.FC = () => {
 
       // 並列でデータを取得
       const [steps, moods, risks] = await Promise.all([
-        getStepHistory(user.uid, 30),
-        getUserMoodHistory(user.uid, 30),
-        getRiskAssessmentHistory(user.uid, 30),
+        firestoreService.getStepHistory(user.uid, 30),
+        firestoreService.getUserMoodHistory(user.uid, 30),
+        firestoreService.getRiskAssessmentHistory(user.uid, 30),
       ]);
 
       // 歩数データの設定
@@ -55,7 +51,7 @@ export const ChartsScreen: React.FC = () => {
       setMoodData(moods);
 
       // リスクデータの変換
-      const riskChartData: RiskChartData[] = risks.map(assessment => ({
+      const riskChartData: RiskChartData[] = risks.map((assessment: any) => ({
         date: assessment.assessmentDate,
         score: assessment.overallRiskScore,
         level: assessment.overallRiskLevel,

@@ -50,10 +50,12 @@ describe('ReportService', () => {
     const mockRiskAssessment: OverallRiskAssessment = {
       userId: mockUserId,
       assessmentDate: '2024-01-15T10:00:00Z',
+      overallLevel: 'medium',
       overallRiskLevel: 'medium',
       overallRiskScore: 45,
       priorityRisks: ['fall'],
       recommendations: ['適度な運動を心がけましょう'],
+      nextAssessmentDate: '2024-02-15T10:00:00Z',
       fallRisk: {
         type: 'fall',
         level: 'medium',
@@ -75,8 +77,10 @@ describe('ReportService', () => {
         lastUpdated: '2024-01-15T10:00:00Z',
         indicators: {
           weeklyAverage: 6000,
-          monthlyTrend: 0,
+          monthlyTrend: 'stable' as const,
           activeDays: 5,
+          activityDays: 5,
+          goalAchievementRate: 62.5,
           stepTarget: 8000,
         },
       },

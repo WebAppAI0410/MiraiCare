@@ -10,7 +10,6 @@ import {
 import {
   LineChart,
   BarChart,
-  ChartConfig,
 } from 'react-native-chart-kit';
 import { Colors, FontSizes, Spacing } from '../types';
 import { StepData, MoodData } from '../types';
@@ -19,6 +18,23 @@ const { width: screenWidth } = Dimensions.get('window');
 
 type ChartType = 'steps' | 'mood' | 'risk';
 type PeriodType = 'week' | 'month' | 'quarter';
+
+interface ChartConfig {
+  backgroundColor: string;
+  backgroundGradientFrom: string;
+  backgroundGradientTo: string;
+  decimalPlaces: number;
+  color: (opacity: number) => string;
+  labelColor: (opacity: number) => string;
+  style: {
+    borderRadius: number;
+  };
+  propsForDots: {
+    r: string;
+    strokeWidth: string;
+    stroke: string;
+  };
+}
 
 interface RiskData {
   date: string;
@@ -271,25 +287,28 @@ export const HealthChart: React.FC<HealthChartProps> = ({
           )}
         </View>
 
-        <LineChart
-          data={chartData}
-          width={screenWidth - 32}
-          height={220}
-          chartConfig={chartConfig}
-          bezier
-          style={styles.chart}
+        <View 
           testID={`${type}-line-chart`}
           accessibilityLabel={`${title}のグラフ`}
           accessibilityRole="image"
-          withVerticalLabels={true}
-          withHorizontalLabels={true}
-          withDots={true}
-          withInnerLines={true}
-          withOuterLines={true}
-          withVerticalLines={false}
-          withHorizontalLines={true}
-          fromZero={true}
-        />
+        >
+          <LineChart
+            data={chartData}
+            width={screenWidth - 32}
+            height={220}
+            chartConfig={chartConfig}
+            bezier
+            style={styles.chart}
+            withVerticalLabels={true}
+            withHorizontalLabels={true}
+            withDots={true}
+            withInnerLines={true}
+            withOuterLines={true}
+            withVerticalLines={false}
+            withHorizontalLines={true}
+            fromZero={true}
+          />
+        </View>
       </View>
     </ScrollView>
   );

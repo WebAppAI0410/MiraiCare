@@ -48,18 +48,17 @@ class RiskAlertService {
       }
 
       // 通知を送信
-      const notificationId = await notificationService.scheduleNotification({
-        title: config.title,
-        body: config.body,
-        data: {
+      const notificationId = await notificationService.scheduleNotification(
+        config.title,
+        config.body,
+        new Date(), // 即座に送信
+        {
           type: 'risk-alert',
           userId,
           riskLevel: assessment.overallRiskLevel,
           assessmentId: assessment.assessmentDate,
-        },
-        priority: config.priority,
-        trigger: null, // 即座に送信
-      });
+        }
+      );
 
       // 通知履歴を保存
       if (notificationId) {
@@ -98,7 +97,8 @@ class RiskAlertService {
       if (assessment.frailtyRisk.indicators.weeklyAverage < 3000) {
         alerts.push('活動量が低下しています。適度な運動を心がけましょう。');
       }
-      if (assessment.frailtyRisk.indicators.activeDays < 4) {
+      const activeDays = assessment.frailtyRisk.indicators.activeDays || assessment.frailtyRisk.indicators.activityDays;
+      if (activeDays !== undefined && activeDays < 4) {
         alerts.push('活動日数が少なくなっています。毎日少しずつでも体を動かしましょう。');
       }
     }
@@ -108,7 +108,8 @@ class RiskAlertService {
       if (assessment.mentalHealthRisk.indicators.moodScore < 40) {
         alerts.push('気分の低下が続いています。必要に応じて専門家にご相談ください。');
       }
-      if (assessment.mentalHealthRisk.indicators.appEngagement < 2) {
+      const appEngagement = assessment.mentalHealthRisk.indicators.appEngagement || assessment.mentalHealthRisk.indicators.engagementLevel;
+      if (appEngagement !== undefined && appEngagement < 2) {
         alerts.push('アプリの利用が減っています。健康管理を継続しましょう。');
       }
     }
@@ -128,10 +129,11 @@ class RiskAlertService {
           data: { type: 'periodic-check', userId },
         },
         trigger: {
+          type: 'daily',
           hour: 10,
           minute: 0,
           repeats: true,
-        },
+        } as any,
       });
     } catch (error) {
       console.error('Failed to schedule periodic risk check:', error);
@@ -160,18 +162,17 @@ class RiskAlertService {
       
       const body = `リスクレベルが「${this.getRiskLevelText(previousLevel)}」から「${this.getRiskLevelText(currentLevel)}」に変化しました。`;
 
-      await notificationService.scheduleNotification({
+      await notificationService.scheduleNotification(
         title,
         body,
-        data: {
+        new Date(), // 即座に送信
+        {
           type: 'risk-level-change',
           userId,
           previousLevel,
           currentLevel,
-        },
-        priority: currentLevel === 'high' ? 'high' : 'default',
-        trigger: null,
-      });
+        }
+      );
     }
   }
 

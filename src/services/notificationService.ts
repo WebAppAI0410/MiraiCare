@@ -212,3 +212,19 @@ export const setupNotificationListeners = () => {
     responseListener.remove();
   };
 };
+
+// サービスオブジェクトとしてエクスポート
+export const notificationService = {
+  requestNotificationPermissions,
+  registerForPushNotifications,
+  getExpoPushToken: registerForPushNotifications, // エイリアス
+  scheduleNotification: scheduleLocalNotification,
+  scheduleReminderNotification,
+  scheduleWaterReminder: scheduleReminderNotification, // エイリアス
+  scheduleMedicationReminder: scheduleReminderNotification, // エイリアス
+  cancelNotification,
+  cancelAllNotifications,
+  getUserNotificationSettings,
+  updateNotificationSettings: updateUserNotificationSettings,
+  setupNotificationListeners,
+};

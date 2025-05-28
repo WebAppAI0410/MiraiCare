@@ -5,7 +5,8 @@ import { renderHook, act } from '@testing-library/react-native';
 import { useStepCounter } from '../../src/hooks/useStepCounter';
 import * as firestoreService from '../../src/services/firestoreService';
 import * as sensorService from '../../src/services/sensorService';
-import { UserProfile, VitalData } from '../../src/types/userData';
+import { VitalData } from '../../src/types/userData';
+import { UserProfile } from '../../src/types';
 
 // サービスのモック
 jest.mock('../../src/services/firestoreService');
@@ -37,8 +38,8 @@ describe('データフロー統合テスト', () => {
     it('ユーザー登録→歩数取得→データ保存→取得確認の流れが正常に動作する', async () => {
       // Phase 1: ユーザー登録
       const newUser: Omit<UserProfile, 'id' | 'createdAt' | 'updatedAt'> = {
-        name: '田中太郎',
-        age: 75,
+        email: 'tanaka@example.com',
+        fullName: '田中太郎',
       };
 
       const userId = 'user123';
@@ -51,10 +52,10 @@ describe('データフロー統合テスト', () => {
       // Phase 2: ユーザープロファイル確認
       const createdUser: UserProfile = {
         id: userId,
-        name: '田中太郎',
-        age: 75,
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-01'),
+        email: 'tanaka@example.com',
+        fullName: '田中太郎',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
       mockFirestoreService.getUserProfile.mockResolvedValue(createdUser);
@@ -186,8 +187,8 @@ describe('データフロー統合テスト', () => {
       // When: ユーザー作成を試行
       await expect(
         firestoreService.createUserProfile({
-          name: '田中太郎',
-          age: 75,
+          email: 'tanaka@example.com',
+          fullName: '田中太郎',
         })
       ).rejects.toThrow('ユーザープロファイルの作成に失敗しました');
 

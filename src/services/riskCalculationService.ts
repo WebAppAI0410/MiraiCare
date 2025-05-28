@@ -254,6 +254,13 @@ class RiskCalculationService {
       frailtyRisk,
       mentalHealthRisk,
       overallLevel,
+      overallRiskLevel: overallLevel, // エイリアス
+      overallRiskScore: Math.max(fallRisk.score, frailtyRisk.score, mentalHealthRisk.score),
+      priorityRisks: [
+        fallRisk.level === 'high' ? 'fall' : null,
+        frailtyRisk.level === 'high' ? 'frailty' : null,
+        mentalHealthRisk.level === 'high' ? 'mentalHealth' : null,
+      ].filter(Boolean) as string[],
       recommendations,
       nextAssessmentDate: nextAssessmentDate.toISOString(),
     };
@@ -362,8 +369,15 @@ class RiskCalculationService {
   private calculateMoodScore(moodHistory: MoodData[]): number {
     if (moodHistory.length === 0) return 50; // デフォルト値
     
-    // intensity（1-5）を0-100スケールに変換（1=0, 5=100）
-    const scores = moodHistory.map(mood => mood.intensity * 20);
+    // moodスコアまたはintensityから計算
+    const scores = moodHistory.map(mood => {
+      if (mood.mood !== undefined) {
+        return mood.mood;
+      } else if (mood.intensity !== undefined) {
+        return mood.intensity * 20; // 1-5を0-100スケールに変換
+      }
+      return 50; // デフォルト値
+    });
     return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
   }
 
@@ -404,7 +418,8 @@ class RiskCalculationService {
     // フレイルリスクに基づく推奨事項
     if (frailtyRisk.level === 'high') {
       recommendations.push('筋力維持のため、少しずつ活動量を増やしましょう');
-      if (frailtyRisk.indicators.activityDays < 3) {
+      const activityDays = frailtyRisk.indicators.activeDays || frailtyRisk.indicators.activityDays;
+      if (activityDays !== undefined && activityDays < 3) {
         recommendations.push('週に最低3日は軽い運動を心がけてください');
       }
     } else if (frailtyRisk.level === 'medium') {
@@ -414,7 +429,8 @@ class RiskCalculationService {
     // メンタルヘルスリスクに基づく推奨事項
     if (mentalHealthRisk.level === 'high') {
       recommendations.push('気分の記録を続けて、心の健康を見守りましょう');
-      if (mentalHealthRisk.indicators.engagementLevel < 30) {
+      const engagementLevel = mentalHealthRisk.indicators.engagementLevel || mentalHealthRisk.indicators.appEngagement;
+      if (engagementLevel !== undefined && engagementLevel < 30) {
         recommendations.push('アプリの機能を活用して、日々の気分を記録してください');
       }
     }
