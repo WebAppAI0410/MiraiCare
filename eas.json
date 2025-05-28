@@ -1,13 +1,28 @@
 {
-  "cli": { "version": ">= 3.16.0" },
+  "cli": { 
+    "version": ">= 3.16.0" 
+  },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview"
     },
     "production": {
-      "android": { "gradleCommand": "bundleRelease" },
-      "ios":      { "simulator": false }
+      "android": { 
+        "gradleCommand": "bundleRelease" 
+      },
+      "ios": { 
+        "simulator": false 
+      },
+      "channel": "production"
     }
+  },
+  "submit": {
+    "production": {}
   }
 } 

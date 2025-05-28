@@ -34,6 +34,13 @@ export default {
     },
     platforms: ["ios", "android", "web"],
     scheme: "miraicare",
+    runtimeVersion: {
+      policy: "sdkVersion"
+    },
+    updates: {
+      enabled: true,
+      url: "https://u.expo.dev/aa4b92d9-b924-4b84-9911-9d2873366df5"
+    },
     plugins: [
       "expo-dev-client",
       [
