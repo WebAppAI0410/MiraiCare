@@ -296,7 +296,7 @@ export const ResponsiveElderlyHomeScreen: React.FC<Props> = ({ navigation }) => 
               />
             }
             variant={data.riskLevel === 'high' ? 'warning' : 'default'}
-            style={isTablet() && styles.gridCard}
+            style={isTablet() ? styles.gridCard : undefined}
             accessibilityLabel={`現在の健康状態: ${riskDisplay.text}。${riskDisplay.description}`}
           />
 
@@ -312,7 +312,7 @@ export const ResponsiveElderlyHomeScreen: React.FC<Props> = ({ navigation }) => 
                 color={Colors.info}
               />
             }
-            style={isTablet() && styles.gridCard}
+            style={isTablet() ? styles.gridCard : undefined}
             accessibilityLabel={`今日の歩数: ${data.todaySteps}歩`}
           />
         </View>

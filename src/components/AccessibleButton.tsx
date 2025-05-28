@@ -49,7 +49,7 @@ export const AccessibleButton: React.FC<AccessibleButtonProps> = ({
     
     // 影の追加（Android/iOS対応）
     if (variant === 'primary' && !isDisabled) {
-      baseStyle.push(androidElevationStyle(4));
+      baseStyle.push(androidElevationStyle(4) as any);
     }
     
     return baseStyle;

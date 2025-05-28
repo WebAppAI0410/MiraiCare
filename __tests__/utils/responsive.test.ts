@@ -1,6 +1,4 @@
 // レスポンシブユーティリティのモックを使用
-jest.mock('../../src/utils/responsive');
-
 import {
   isTablet,
   isLargeTablet,
@@ -18,6 +16,8 @@ import {
   getDeviceInfo,
   __setMockDimensions,
 } from '../../src/utils/responsive';
+
+jest.mock('../../src/utils/responsive');
 
 describe('responsive utilities', () => {
   beforeEach(() => {
