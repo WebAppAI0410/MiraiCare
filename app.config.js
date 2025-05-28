@@ -34,7 +34,19 @@ export default {
     },
     platforms: ["ios", "android", "web"],
     scheme: "miraicare",
+    updates: {
+      url: "https://u.expo.dev/3f6b8d8e-5c3e-4d8b-b3a0-1e9c2f5d7a6b",
+      enabled: true,
+      checkAutomatically: "ON_LOAD",
+      fallbackToCacheTimeout: 30000
+    },
+    runtimeVersion: {
+      policy: "sdkVersion"
+    },
     extra: {
+      eas: {
+        projectId: "3f6b8d8e-5c3e-4d8b-b3a0-1e9c2f5d7a6b"
+      },
       // Firebase Web SDK設定
       firebaseApiKey: "AIzaSyDxxs-Oxtw_SSV_nIe1knYpEJIOpQ9QoJM",
       firebaseAuthDomain: "miraicare-360-mvp.firebaseapp.com",
