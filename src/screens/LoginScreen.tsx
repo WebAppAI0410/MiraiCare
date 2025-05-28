@@ -18,6 +18,7 @@ import { resetPassword } from '../services/authService';
 import { signInWithEmailFree, resendVerificationEmail } from '../services/authServiceFree';
 import { reload } from 'firebase/auth';
 import { auth } from '../config/firebase';
+import { androidEmailInputFix, validateEmailForAndroid, androidKeyboardAvoidingViewProps, androidElevationStyle } from '../utils/android-fixes';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -122,8 +123,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onSwitchToSig
       <StatusBar style="dark" backgroundColor={Colors.background} />
       <KeyboardAvoidingView 
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        {...androidKeyboardAvoidingViewProps}
       >
         <ScrollView 
           showsVerticalScrollIndicator={false}
@@ -149,9 +149,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onSwitchToSig
               onChangeText={setEmail}
               placeholder="example@example.com"
               placeholderTextColor={Colors.textLight}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
+              {...androidEmailInputFix}
               accessibilityLabel="メールアドレス入力"
               accessibilityHint="ログイン用のメールアドレスを入力してください"
             />
@@ -316,11 +314,7 @@ const styles = StyleSheet.create({
     minHeight: TouchTargets.buttonHeightLarge,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    ...androidElevationStyle(3),
   },
   buttonDisabled: {
     backgroundColor: Colors.disabled,

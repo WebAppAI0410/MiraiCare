@@ -3,6 +3,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
+import { androidScreenTransitionFix } from '../utils/android-fixes';
 
 import HomeScreen from '../screens/HomeScreen';
 import ActivityScreen from '../screens/ActivityScreen';
@@ -89,6 +91,18 @@ export default function AppNavigator({ showOnboarding, onOnboardingComplete }: A
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
+          ...(Platform.OS === 'android' && {
+            cardStyleInterpolator: ({ current: { progress } }) => ({
+              cardStyle: {
+                opacity: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1],
+                }),
+              },
+            }),
+            animationEnabled: true,
+            gestureEnabled: false,
+          }),
         }}
       >
         <Stack.Screen 

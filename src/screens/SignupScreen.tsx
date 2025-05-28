@@ -17,6 +17,7 @@ import { Colors, FontSizes, TouchTargets, Spacing } from '../types';
 import { signUpWithEmailFree } from '../services/authServiceFree';
 import { debugLog, debugError } from '../utils/debug';
 import { webTouchableOpacityFix, webScrollViewFix, webTextInputFix } from '../utils/platform-fixes';
+import { androidEmailInputFix, validateEmailForAndroid, androidKeyboardAvoidingViewProps, androidElevationStyle } from '../utils/android-fixes';
 
 interface SignupScreenProps {
   onSignupSuccess: () => void;
@@ -43,9 +44,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
       return false;
     }
     
-    // メールアドレスの形式チェック
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
+    // メールアドレスの形式チェック（Android対応）
+    if (!validateEmailForAndroid(email)) {
       Alert.alert('入力エラー', '有効なメールアドレスを入力してください。');
       return false;
     }
@@ -115,7 +115,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
       <StatusBar style="dark" backgroundColor={Colors.background} />
       <KeyboardAvoidingView 
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        {...androidKeyboardAvoidingViewProps}
       >
         <ScrollView showsVerticalScrollIndicator={false} style={webScrollViewFix}>
           {/* ヘッダー */}
@@ -146,14 +146,12 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ onSignupSuccess, onSwitchTo
             <View style={styles.inputGroup}>
               <Text style={styles.label}>メールアドレス</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, webTextInputFix]}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="example@example.com"
                 placeholderTextColor={Colors.textLight}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
+                {...androidEmailInputFix}
                 accessibilityLabel="メールアドレス入力"
                 accessibilityHint="登録用のメールアドレスを入力してください"
               />
@@ -358,11 +356,7 @@ const styles = StyleSheet.create({
     minHeight: TouchTargets.buttonHeightLarge,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    ...androidElevationStyle(3),
   },
   buttonDisabled: {
     backgroundColor: Colors.disabled,
