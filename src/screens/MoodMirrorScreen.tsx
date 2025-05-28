@@ -16,6 +16,7 @@ import { Colors } from '../types';
 import i18n from '../config/i18n';
 import { auth } from '../config/firebase';
 import { saveMoodData as saveMoodDataToFirebase } from '../services/firestoreService';
+import { analyzeMoodWithGPT } from '../services/moodAnalysisService';
 
 interface ChatMessage {
   id: string;

@@ -3,7 +3,7 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testTimeout: 30000, // 30秒タイムアウト
   transformIgnorePatterns: [
-    'node_modules/(?!(react-native|@react-native|@react-navigation|expo|expo-.*|@expo|@supabase|@expo/vector-icons|react-native-svg|zustand|i18n-js|react-i18next|firebase|@firebase)/)',
+    'node_modules/(?!(react-native|@react-native|@react-navigation|expo|expo-.*|@expo|@supabase|@expo/vector-icons|react-native-svg|zustand|i18n-js|react-i18next|firebase|@firebase|react-native-vector-icons)/)',
   ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   testMatch: [

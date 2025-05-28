@@ -1,6 +1,15 @@
 // Mock react-native modules
 global.__DEV__ = true;
 
+// Mock React Native modules before they are imported
+jest.mock('react-native', () => {
+  const RN = jest.requireActual('react-native');
+  RN.Alert = {
+    alert: jest.fn(),
+  };
+  return RN;
+});
+
 // Mock Expo modules
 jest.mock('expo-constants', () => ({
   default: {
@@ -19,6 +28,11 @@ jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(),
   requestPermissionsAsync: jest.fn(),
 }));
+
+// Mock AsyncStorage
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
 
 // Pedometerモックのファクトリー関数
 const createPedometerMock = () => ({
@@ -117,6 +131,48 @@ jest.mock('@expo/vector-icons', () => {
     EvilIcons: mockIcon('EvilIcons'),
   };
 });
+
+// Mock react-native-vector-icons
+jest.mock('react-native-vector-icons/MaterialIcons', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  return React.forwardRef((props, ref) => {
+    return React.createElement(View, { ...props, ref });
+  });
+});
+
+jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  return React.forwardRef((props, ref) => {
+    return React.createElement(View, { ...props, ref });
+  });
+});
+
+jest.mock('react-native-vector-icons/FontAwesome', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  return React.forwardRef((props, ref) => {
+    return React.createElement(View, { ...props, ref });
+  });
+});
+
+jest.mock('react-native-vector-icons/Ionicons', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  return React.forwardRef((props, ref) => {
+    return React.createElement(View, { ...props, ref });
+  });
+});
+
+// Mock React Native Alert (グローバル変数としても設定)
+global.Alert = {
+  alert: jest.fn(),
+};
 
 // Silence console warnings in tests
 global.console = {

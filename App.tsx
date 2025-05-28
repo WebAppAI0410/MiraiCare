@@ -11,6 +11,9 @@ import { subscribeToAuthState } from './src/services/authService';
 import { User, Colors, AppState } from './src/types';
 import { notificationService } from './src/services/notificationService';
 import * as Notifications from 'expo-notifications';
+import { auth } from './src/config/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // SYNTAX ERRORS FIXED AFTER SUCCESSFUL CI AUTOFIX TEST
 // const intentionallyBroken = ;
@@ -39,28 +42,51 @@ export default function App() {
     // 通知リスナーの設定
     notificationService.setupNotificationListeners();
     
-    // 認証状態の監視
-    const unsubscribe = subscribeToAuthState((currentUser) => {
-      setUser(currentUser);
-      setIsLoading(false);
+    // オンボーディング状態を確認
+    const checkOnboardingStatus = async () => {
+      const hasSeenOnboardingStorage = await AsyncStorage.getItem('hasSeenOnboarding');
+      if (hasSeenOnboardingStorage === 'true') {
+        setHasSeenOnboarding(true);
+      }
+    };
+    
+    checkOnboardingStatus();
+    
+    // Firebase認証状態の監視
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      console.log('Auth state changed:', currentUser?.uid);
       
       if (currentUser) {
-        // 認証済みユーザー → メインアプリ
+        // 認証済みユーザー
+        const userObj: User = {
+          id: currentUser.uid,
+          email: currentUser.email || '',
+          fullName: currentUser.displayName || '',
+        };
+        setUser(userObj);
         setAppState('authenticated');
-      } else if (hasSeenOnboarding) {
-        // オンボーディング済み → ゲスト体験
-        setAppState('guest_experience');
+        setShowLogin(false);
+        setShowSignup(false);
       } else {
-        // 初回起動 → オンボーディング
-        setAppState('onboarding');
+        // 未認証
+        setUser(null);
+        const hasSeenOnboardingStorage = await AsyncStorage.getItem('hasSeenOnboarding');
+        if (hasSeenOnboardingStorage === 'true') {
+          setAppState('guest_experience');
+        } else {
+          setAppState('onboarding');
+        }
       }
+      
+      setIsLoading(false);
     });
 
     return unsubscribe;
-  }, [hasSeenOnboarding]);
+  }, []);
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = async () => {
     setHasSeenOnboarding(true);
+    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
     setAppState('guest_experience');
   };
 
@@ -81,7 +107,7 @@ export default function App() {
   
 
   const handleLoginNavigate = () => {
-    setShowSignup(true);
+    setShowLogin(true);
   };
 
   const handleContinueGuest = () => {

@@ -62,10 +62,14 @@ export const createUserProfile = async (userData: Omit<UserProfile, 'id' | 'crea
  */
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
+    console.log('Getting user profile for:', userId);
+    
+    // まずドキュメントIDで取得を試みる
     const userDocRef = doc(db, COLLECTIONS.USER_PROFILES, userId);
     const userDoc = await getDoc(userDocRef);
     
     if (userDoc.exists()) {
+      console.log('User profile found by document ID');
       const data = userDoc.data();
       return {
         id: userDoc.id,
@@ -92,9 +96,59 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
           dailyReport: false,
           riskAlerts: false,
         },
+        userId,
       };
     }
     
+    // ドキュメントIDで見つからない場合、userIdフィールドで検索
+    console.log('Document not found by ID, searching by userId field...');
+    const profileQuery = query(
+      collection(db, COLLECTIONS.USER_PROFILES),
+      where('userId', '==', userId),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(profileQuery);
+    
+    if (!querySnapshot.empty) {
+      console.log('User profile found by userId field');
+      const doc = querySnapshot.docs[0];
+      const data = doc.data();
+      return {
+        id: doc.id,
+        email: data.email || '',
+        fullName: data.fullName || data.name,
+        avatarUrl: data.avatarUrl,
+        phone: data.phone,
+        birthDate: data.birthDate,
+        emergencyContact: data.emergencyContact,
+        lineNotifyToken: data.lineNotifyToken,
+        emailVerified: data.emailVerified || false,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAt).toISOString(),
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date(data.updatedAt).toISOString(),
+        // UserSettings properties
+        stepTarget: data.stepTarget,
+        strideLength: data.strideLength,
+        weight: data.weight,
+        height: data.height,
+        activityLevel: data.activityLevel,
+        notifications: data.notifications || {
+          enabled: false,
+          reminder: { enabled: false, time: '09:00' },
+          weeklyReport: { enabled: false, dayOfWeek: 1 },
+        },
+        privacy: data.privacy || {
+          shareProgress: false,
+          showInLeaderboard: false,
+        },
+        theme: data.theme,
+        language: data.language,
+        fontSize: data.fontSize,
+        userId,
+      };
+    }
+    
+    console.log('User profile not found');
     return null;
   } catch (error) {
     console.error('ユーザープロファイル取得エラー:', error);
