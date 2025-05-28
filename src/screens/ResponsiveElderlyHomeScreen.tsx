@@ -87,8 +87,11 @@ export const ResponsiveElderlyHomeScreen: React.FC<Props> = ({ navigation }) => 
 
       // 現在の認証ユーザーIDを取得
       const currentUser = auth.currentUser;
+      console.log('Current user:', currentUser?.uid, currentUser?.email);
+      
       if (!currentUser) {
-        throw new Error('ログインしていません');
+        console.error('No authenticated user found');
+        throw new Error('ログインしていません。ログイン画面からログインしてください。');
       }
       const userId = currentUser.uid;
       
@@ -100,10 +103,18 @@ export const ResponsiveElderlyHomeScreen: React.FC<Props> = ({ navigation }) => 
         firestoreService.getTodayMoodData(userId),
       ]);
 
+      // エラーの詳細をログ出力
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const names = ['getUserProfile', 'getLatestRiskAssessment', 'getTodaySteps', 'getTodayMoodData'];
+          console.error(`${names[index]} failed:`, result.reason);
+        }
+      });
+      
       // すべて失敗した場合はエラー状態に
       const allFailed = results.every(result => result.status === 'rejected');
       if (allFailed) {
-        throw new Error('すべてのデータ取得に失敗しました');
+        throw new Error('すべてのデータ取得に失敗しました。データベースの権限設定を確認してください。');
       }
 
       // 成功した結果を取得
@@ -132,10 +143,11 @@ export const ResponsiveElderlyHomeScreen: React.FC<Props> = ({ navigation }) => 
       });
     } catch (error) {
       console.error('HomeScreen data loading error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'データを取得できませんでした';
       setData(prev => ({
         ...prev,
         loading: false,
-        error: 'データを取得できませんでした。もう一度お試しください。',
+        error: errorMessage,
       }));
     }
   };
